@@ -1,0 +1,308 @@
+# Protocolo de Trabajo con Claude Code
+
+## 📋 Estructura de Archivos Requerida
+
+Crear estos archivos en la raíz del proyecto:
+
+```
+/docs/
+  ├── project-status.md        # Estado actual del proyecto
+  ├── technical-specs.md        # Arquitectura y especificaciones técnicas
+  └── session-learnings.md      # Aprendizajes y soluciones
+```
+
+---
+
+## 1️⃣ PROJECT-STATUS.MD
+
+```markdown
+# Estado del Proyecto
+
+**Última actualización:** [FECHA]
+**Versión:** [X.X.X]
+**Ambiente de despliegue:** Railway
+
+## 🎯 Objetivo del Proyecto
+[Descripción breve del propósito de la aplicación]
+
+## ✅ Funcionalidades Completadas
+- [ ] Feature 1: [Descripción]
+- [ ] Feature 2: [Descripción]
+- [ ] Feature 3: [Descripción]
+
+## 🚧 En Progreso
+- [ ] [Tarea actual 1]
+- [ ] [Tarea actual 2]
+
+## 📝 Próximos Pasos
+1. [Siguiente tarea prioritaria]
+2. [Siguiente tarea]
+3. [Backlog item]
+
+## 🐛 Bugs Conocidos
+- [Bug 1]: [Descripción y estado]
+- [Bug 2]: [Descripción y estado]
+
+## 🔧 Configuración Actual
+- **Framework:** [React/Vue/Node/etc]
+- **Base de datos:** [PostgreSQL/MongoDB/etc]
+- **Deploy:** Railway
+- **Variables de entorno necesarias:**
+  - `DATABASE_URL`
+  - `API_KEY`
+  - [Otras variables]
+
+## 📌 Notas Importantes
+- [Decisión arquitectónica importante 1]
+- [Consideración especial 2]
+```
+
+---
+
+## 2️⃣ TECHNICAL-SPECS.MD
+
+```markdown
+# Especificaciones Técnicas
+
+## 🗄️ Estructura de Base de Datos
+
+### Tabla: users
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Tabla: [otra_tabla]
+```sql
+-- Definición de tabla
+```
+
+## 🔌 Endpoints API
+
+### Autenticación
+- `POST /api/auth/register` - Registro de usuario
+  - Body: `{ email, password }`
+  - Response: `{ token, user }`
+
+- `POST /api/auth/login` - Login
+  - Body: `{ email, password }`
+  - Response: `{ token, user }`
+
+### [Recurso]
+- `GET /api/[recurso]` - Listar todos
+  - Query params: `?page=1&limit=10`
+  - Response: `{ data: [], total, page }`
+
+- `POST /api/[recurso]` - Crear nuevo
+  - Body: `{ campo1, campo2 }`
+  - Response: `{ id, ...campos }`
+
+## 🏗️ Arquitectura del Proyecto
+
+```
+/src
+  /components     # Componentes React
+  /pages          # Páginas/rutas
+  /services       # Servicios y lógica de negocio
+  /utils          # Utilidades y helpers
+  /config         # Configuración
+/server
+  /routes         # Rutas del API
+  /controllers    # Controladores
+  /models         # Modelos de datos
+  /middleware     # Middleware
+```
+
+## 🚀 Deploy en Railway
+
+### Variables de Entorno
+```env
+DATABASE_URL=postgresql://...
+PORT=3000
+NODE_ENV=production
+```
+
+### Comandos de Build
+- Build: `npm run build`
+- Start: `npm start`
+
+### Configuración Railway
+- Framework: [Framework detectado]
+- Build command: [comando]
+- Start command: [comando]
+```
+
+---
+
+## 3️⃣ SESSION-LEARNINGS.MD
+
+```markdown
+# Aprendizajes y Soluciones
+
+## Sesión: [FECHA]
+
+### ✅ Problemas Resueltos
+
+#### Problema 1: [Título descriptivo]
+**Contexto:** [Qué estábamos intentando hacer]
+
+**Error encontrado:**
+```
+[Mensaje de error o descripción del problema]
+```
+
+**Solución aplicada:**
+[Descripción de la solución paso a paso]
+
+**Código relevante:**
+```javascript
+// Solución implementada
+```
+
+**Aprendizaje:** [Qué aprendimos para el futuro]
+
+---
+
+#### Problema 2: [Título]
+[Misma estructura...]
+
+### 💡 Mejores Prácticas Descubiertas
+- [Práctica 1]: [Descripción]
+- [Práctica 2]: [Descripción]
+
+### 🔍 Para Investigar
+- [ ] [Tema pendiente de investigar]
+- [ ] [Optimización a considerar]
+```
+
+---
+
+## 🚀 CLAUDE.MD - ARCHIVO DE ENTRADA
+
+### Crear archivo `claude.md` en la raíz del proyecto:
+
+```markdown
+# Protocolo de Inicio - Claude Code
+
+## 🎯 Instrucciones de Inicio de Sesión
+
+Hola Claude Code! Al iniciar cada sesión, por favor:
+
+### 1. Lee la documentación del proyecto
+Debes leer estos archivos EN ORDEN:
+
+1. **`docs/project-status.md`** - Para conocer el estado actual
+2. **`docs/technical-specs.md`** - Para entender la arquitectura
+3. **`docs/session-learnings.md`** - Para aprender de sesiones anteriores
+
+### 2. Contexto del Proyecto
+
+**Deploy:** Este proyecto está desplegado en Railway
+**Importante:** Todas las configuraciones de despliegue están en `technical-specs.md`
+
+### 3. Proceso de Inicio
+
+Después de leer los archivos:
+1. Confirma que comprendes el estado actual del proyecto
+2. Resume brevemente:
+   - Qué está completo
+   - Qué está en progreso
+   - Problemas conocidos
+3. Pregúntame: **"¿En qué vamos a trabajar hoy?"**
+
+### 4. Durante la Sesión
+
+- Consulta `session-learnings.md` antes de resolver problemas similares
+- Si encuentras un error, revisa si hay una solución documentada
+- Mantén en mente la estructura de datos y endpoints de `technical-specs.md`
+
+### 5. Al Finalizar la Sesión
+
+Recuérdame actualizar:
+- [ ] `project-status.md` - Estado y próximos pasos
+- [ ] `technical-specs.md` - Si hubo cambios en arquitectura/BD/endpoints
+- [ ] `session-learnings.md` - Problemas encontrados y soluciones
+
+---
+
+## 📌 Reglas Importantes
+
+1. **Siempre lee los docs antes de empezar a codear**
+2. **Referencia los aprendizajes previos cuando sea relevante**
+3. **Sigue las convenciones establecidas en technical-specs.md**
+4. **Railway es nuestro ambiente de despliegue - considera esto en decisiones técnicas**
+
+---
+
+**Versión del protocolo:** 1.0
+**Última actualización:** [FECHA]
+```
+
+## 🚀 PROTOCOLO DE INICIO DE SESIÓN (ACTUALIZADO)
+
+### Al iniciar sesión con Claude Code:
+
+1. **Comando inicial:**
+```bash
+claude-code
+```
+
+2. **Claude Code automáticamente lee `claude.md`** y ejecutará las instrucciones
+
+3. **Claude Code responderá** con un resumen del estado y preguntará objetivos
+
+4. **Trabajar en la sesión** normalmente
+
+---
+
+## 📝 PROTOCOLO DE FIN DE SESIÓN
+
+### Antes de cerrar la sesión:
+
+1. **Actualizar project-status.md:**
+   - Marcar tareas completadas
+   - Actualizar "En Progreso"
+   - Añadir nuevos "Próximos Pasos"
+   - Actualizar bugs si corresponde
+
+2. **Actualizar technical-specs.md:**
+   - Si se crearon nuevos endpoints
+   - Si cambió la estructura de BD
+   - Si se modificó la arquitectura
+
+3. **Actualizar session-learnings.md:**
+   - Documentar problemas encontrados y sus soluciones
+   - Añadir aprendizajes importantes
+   - Marcar temas para investigar
+
+4. **Comando final a Claude Code:**
+```
+Hemos terminado la sesión. Por favor:
+1. Resume lo que logramos hoy
+2. Recuérdame actualizar los archivos de documentación
+3. Sugiere prioridades para la próxima sesión
+```
+
+---
+
+## 🎯 BENEFICIOS DE ESTE PROTOCOLO
+
+✅ **Continuidad:** Cada sesión comienza con contexto completo
+✅ **Trazabilidad:** Historial de decisiones y soluciones
+✅ **Eficiencia:** Menos tiempo explicando el proyecto
+✅ **Conocimiento:** Base de datos de soluciones acumuladas
+✅ **Onboarding:** Fácil para nuevos desarrolladores o Claude Code fresco
+
+---
+
+## 📌 TIPS ADICIONALES
+
+- Commitea los archivos de docs/ frecuentemente
+- Usa formato consistente en fechas: YYYY-MM-DD
+- Sé específico en las descripciones de problemas
+- Incluye código relevante en los aprendizajes
+- Actualiza la versión en cada deploy significativo

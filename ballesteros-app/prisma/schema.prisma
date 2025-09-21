@@ -1,0 +1,286 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Empresas del grupo (Principal, Express, Asadero)
+model Empresa {
+  id         Int      @id @default(autoincrement())
+  nombre     String   @db.VarChar(100)
+  activa     Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  // Relaciones
+  clientes    Cliente[]
+  proveedores Proveedor[]
+  cortes      CorteCaja[]
+
+  @@map("empresas")
+}
+
+// Empleados (compartido entre todas las empresas)
+model Empleado {
+  id                Int      @id @default(autoincrement())
+  nombre            String   @db.VarChar(255)
+  telefono          String?  @db.VarChar(20)
+  puesto            String?  @db.VarChar(100)
+  puede_operar_caja Boolean  @default(false)
+  activo            Boolean  @default(true)
+  created_at        DateTime @default(now())
+
+  // Relaciones
+  cortes   CorteCaja[]
+  prestamos PrestamoEmpleado[]
+
+  @@map("empleados")
+}
+
+// Clientes por empresa
+model Cliente {
+  id             Int     @id @default(autoincrement())
+  empresa_id     Int
+  nombre         String  @db.VarChar(255)
+  telefono       String? @db.VarChar(20)
+  saldo_inicial  Decimal @default(0) @db.Decimal(10, 2)
+  created_at     DateTime @default(now())
+
+  // Relaciones
+  empresa          Empresa            @relation(fields: [empresa_id], references: [id])
+  movimientos      MovimientoCliente[]
+  ventas_credito   VentaCorte[]
+  ingresos_turno   IngresoTurno[]
+
+  @@map("clientes")
+}
+
+// Proveedores por empresa
+model Proveedor {
+  id         Int      @id @default(autoincrement())
+  empresa_id Int
+  nombre     String   @db.VarChar(255)
+  created_at DateTime @default(now())
+
+  // Relaciones
+  empresa        Empresa          @relation(fields: [empresa_id], references: [id])
+  cuentas_pagar  CuentaPorPagar[]
+  pagos          PagoProveedor[]
+
+  @@map("proveedores")
+}
+
+// Categorías de gastos (compartidas)
+model CategoriaGasto {
+  id     Int     @id @default(autoincrement())
+  nombre String  @db.VarChar(100)
+  tipo   String? @db.VarChar(50) // 'compra', 'servicio', 'mantenimiento', 'personal', 'otros'
+  activa Boolean @default(true)
+
+  // Relaciones
+  subcategorias   SubcategoriaGasto[]
+  egresos_turno   EgresoTurno[]
+  cuentas_pagar   CuentaPorPagar[]
+
+  @@map("categorias_gasto")
+}
+
+// Subcategorías de gastos
+model SubcategoriaGasto {
+  id           Int    @id @default(autoincrement())
+  categoria_id Int
+  nombre       String @db.VarChar(100)
+
+  // Relaciones
+  categoria     CategoriaGasto   @relation(fields: [categoria_id], references: [id])
+  egresos_turno EgresoTurno[]
+  cuentas_pagar CuentaPorPagar[]
+
+  @@map("subcategorias_gasto")
+}
+
+// Cortes de caja principales
+model CorteCaja {
+  id                 Int      @id @default(autoincrement())
+  empresa_id         Int
+  empleado_id        Int
+  fecha              DateTime @db.Date
+  sesion             Int      @default(1)
+  venta_neta         Decimal  @db.Decimal(10, 2) // Captura manual desde POS
+  efectivo_esperado  Decimal? @db.Decimal(10, 2) // Calculado
+  efectivo_real      Decimal? @db.Decimal(10, 2) // Entregado por cajera
+  diferencia         Decimal? @db.Decimal(10, 2) // Calculado
+  tags               String?  @db.Text // Etiquetas del corte
+  adeudo_generado    Boolean  @default(false)
+  estado             String   @default("activo") @db.VarChar(20)
+  created_at         DateTime @default(now())
+
+  // Relaciones
+  empresa        Empresa        @relation(fields: [empresa_id], references: [id])
+  empleado       Empleado       @relation(fields: [empleado_id], references: [id])
+  ventas         VentaCorte[]
+  cortesias      CortesiaCorte[]
+  ingresos_turno IngresoTurno[]
+  egresos_turno  EgresoTurno[]
+
+  @@unique([empresa_id, empleado_id, fecha, sesion])
+  @@map("cortes_caja")
+}
+
+// Ventas individuales dentro del corte (informativas)
+model VentaCorte {
+  id          Int      @id @default(autoincrement())
+  corte_id    Int
+  forma_pago  String   @db.VarChar(20) // 'efectivo', 'tarjeta', 'credito', 'transferencia'
+  monto       Decimal  @db.Decimal(10, 2)
+  cliente_id  Int? // Solo si es crédito
+  tags        String?  @db.Text
+  created_at  DateTime @default(now())
+
+  // Relaciones
+  corte   CorteCaja @relation(fields: [corte_id], references: [id], onDelete: Cascade)
+  cliente Cliente?  @relation(fields: [cliente_id], references: [id])
+
+  @@map("ventas_corte")
+}
+
+// Cortesías del corte
+model CortesiaCorte {
+  id           Int     @id @default(autoincrement())
+  corte_id     Int
+  monto        Decimal @db.Decimal(10, 2)
+  beneficiario String  @db.VarChar(255)
+  tags         String? @db.Text
+
+  // Relaciones
+  corte CorteCaja @relation(fields: [corte_id], references: [id], onDelete: Cascade)
+
+  @@map("cortesias_corte")
+}
+
+// Ingresos durante el turno
+model IngresoTurno {
+  id         Int     @id @default(autoincrement())
+  corte_id   Int
+  tipo       String  @db.VarChar(50) // 'cobranza_efectivo', 'transferencia'
+  monto      Decimal @db.Decimal(10, 2)
+  cliente_id Int?
+  tags       String? @db.Text
+
+  // Relaciones
+  corte   CorteCaja @relation(fields: [corte_id], references: [id], onDelete: Cascade)
+  cliente Cliente?  @relation(fields: [cliente_id], references: [id])
+
+  @@map("ingresos_turno")
+}
+
+// Egresos durante el turno
+model EgresoTurno {
+  id               Int     @id @default(autoincrement())
+  corte_id         Int
+  tipo             String  @db.VarChar(50) // 'gasto', 'compra', 'prestamo', 'retiro'
+  monto            Decimal @db.Decimal(10, 2)
+  relacionado_id   Int? // empleado_id o proveedor_id según tipo
+  categoria_id     Int?
+  subcategoria_id  Int?
+  tags             String? @db.Text
+  descripcion      String? @db.Text
+
+  // Relaciones
+  corte        CorteCaja          @relation(fields: [corte_id], references: [id], onDelete: Cascade)
+  categoria    CategoriaGasto?    @relation(fields: [categoria_id], references: [id])
+  subcategoria SubcategoriaGasto? @relation(fields: [subcategoria_id], references: [id])
+
+  @@map("egresos_turno")
+}
+
+// Cuentas por pagar
+model CuentaPorPagar {
+  id               Int      @id @default(autoincrement())
+  proveedor_id     Int
+  fecha_compra     DateTime @db.Date
+  monto            Decimal  @db.Decimal(10, 2)
+  categoria_id     Int?
+  subcategoria_id  Int?
+  numero_factura   String?  @db.VarChar(100)
+  fecha_vencimiento DateTime? @db.Date
+  peso_cantidad    String?  @db.VarChar(100)
+  estado           String   @default("pendiente") @db.VarChar(20)
+  saldo_pendiente  Decimal  @db.Decimal(10, 2)
+  created_at       DateTime @default(now())
+
+  // Relaciones
+  proveedor    Proveedor          @relation(fields: [proveedor_id], references: [id])
+  categoria    CategoriaGasto?    @relation(fields: [categoria_id], references: [id])
+  subcategoria SubcategoriaGasto? @relation(fields: [subcategoria_id], references: [id])
+
+  @@map("cuentas_por_pagar")
+}
+
+// Pagos a proveedores
+model PagoProveedor {
+  id           Int      @id @default(autoincrement())
+  proveedor_id Int
+  fecha        DateTime @db.Date
+  monto        Decimal  @db.Decimal(10, 2)
+  forma_pago   String   @db.VarChar(20) // 'efectivo', 'transferencia'
+  referencia   String?  @db.Text
+  created_at   DateTime @default(now())
+
+  // Relaciones
+  proveedor Proveedor @relation(fields: [proveedor_id], references: [id])
+
+  @@map("pagos_proveedor")
+}
+
+// Movimientos de clientes (cuentas por cobrar)
+model MovimientoCliente {
+  id         Int      @id @default(autoincrement())
+  cliente_id Int
+  tipo       String   @db.VarChar(20) // 'venta', 'pago'
+  fecha      DateTime @db.Date
+  monto      Decimal  @db.Decimal(10, 2)
+  referencia String?  @db.Text
+  created_at DateTime @default(now())
+
+  // Relaciones
+  cliente Cliente @relation(fields: [cliente_id], references: [id])
+
+  @@map("movimientos_cliente")
+}
+
+// Préstamos a empleados
+model PrestamoEmpleado {
+  id          Int      @id @default(autoincrement())
+  empleado_id Int
+  tipo        String   @db.VarChar(50) // 'prestamo', 'pago', 'adeudo_faltante'
+  fecha       DateTime @db.Date
+  monto       Decimal  @db.Decimal(10, 2)
+  origen      String?  @db.VarChar(100) // 'corte_caja', 'caja_contadora'
+  corte_id    Int? // Si es adeudo por faltante
+  referencia  String?  @db.Text
+  created_at  DateTime @default(now())
+
+  // Relaciones
+  empleado Empleado @relation(fields: [empleado_id], references: [id])
+
+  @@map("prestamos_empleado")
+}
+
+// Caja de la contadora
+model CajaContadora {
+  id            Int      @id @default(autoincrement())
+  empresa_id    Int? // NULL si es caja compartida
+  fecha         DateTime @db.Date
+  saldo_inicial Decimal  @db.Decimal(10, 2)
+  saldo_final   Decimal  @db.Decimal(10, 2)
+  created_at    DateTime @default(now())
+
+  @@unique([empresa_id, fecha])
+  @@map("caja_contadora")
+}
