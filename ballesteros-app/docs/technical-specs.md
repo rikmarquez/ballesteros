@@ -85,11 +85,14 @@ CREATE TABLE cortes_caja (
 
 ## 🔌 Endpoints API
 
-### Autenticación (NextAuth.js)
-- `GET /api/auth/signin` - Página de login
-- `POST /api/auth/signin` - Proceso de login
-- `GET /api/auth/signout` - Cerrar sesión
+### Autenticación (NextAuth.js v5)
+- `GET /api/auth/[...nextauth]` - Manejo completo de autenticación
 - `GET /api/auth/session` - Obtener sesión actual
+- `GET /api/auth/signin` - Página de login
+- `POST /api/auth/callback/credentials` - Validación de credenciales
+- `GET /api/auth/signout` - Cerrar sesión
+- `GET /api/auth/providers` - Proveedores disponibles
+- `GET /api/auth/csrf` - Token CSRF
 
 ### Cortes de Caja
 - `GET /api/cortes` - Listar cortes
@@ -149,14 +152,15 @@ CREATE TABLE cortes_caja (
 ```
 
 ### Tecnologías Clave
-- **Next.js 14**: Framework full-stack con App Router
+- **Next.js 15**: Framework full-stack con App Router
 - **TypeScript**: Type safety en todo el proyecto
 - **Prisma**: ORM type-safe para PostgreSQL
-- **NextAuth.js**: Autenticación y manejo de sesiones
+- **NextAuth.js v5**: Autenticación y manejo de sesiones (beta)
+- **Middleware**: Protección automática de rutas
 - **Tailwind CSS**: Styling utility-first
 - **shadcn/ui**: Componentes UI pre-construidos
 - **React Hook Form + Zod**: Formularios y validación
-- **Zustand**: State management ligero
+- **bcryptjs**: Hash de contraseñas (desarrollo)
 
 ## 🚀 Deploy en Railway
 

@@ -17,10 +17,14 @@ Sistema web de control financiero para un grupo de 3 carnicerías relacionadas (
 - [x] Página principal con dashboard funcional
 - [x] Variables de entorno configuradas
 - [x] Servidor de desarrollo funcionando
+- [x] **Sistema de autenticación NextAuth.js completado**
+- [x] **Middleware de protección de rutas implementado**
+- [x] **Página de login con validación de credenciales**
+- [x] **Dashboard mejorado con layout centrado y UI optimizada**
+- [x] **Datos de prueba de empleados creados**
 
 ## 🚧 En Progreso
 - [ ] Implementación del módulo de cortes de caja
-- [ ] Sistema de autenticación (NextAuth.js)
 - [ ] Formularios con React Hook Form + Zod
 
 ## 📝 Próximos Pasos
