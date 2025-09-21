@@ -1,20 +1,41 @@
 'use client'
 
 import Link from 'next/link'
+import { useSession, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function HomePage() {
+  const { data: session } = useSession()
+
   return (
     <div className="container mx-auto py-8">
+      {/* Header centrado */}
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">
           Sistema Financiero Ballesteros
         </h1>
-        <p className="text-lg text-gray-600 mt-2">
+        <p className="text-lg text-gray-600 mb-2">
           Control financiero para Carnicería Principal, Express y Asadero
         </p>
+        {session && (
+          <p className="text-sm text-green-600">
+            Bienvenido: {session.user.name} ({session.user.puesto})
+          </p>
+        )}
       </div>
+
+      {/* Botón de cerrar sesión alineado con los módulos */}
+      {session && (
+        <div className="max-w-4xl mx-auto mb-6 flex justify-end">
+          <Button
+            variant="outline"
+            onClick={() => signOut()}
+          >
+            Cerrar Sesión
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
         <Card>
