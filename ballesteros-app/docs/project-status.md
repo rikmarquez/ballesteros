@@ -23,16 +23,35 @@ Sistema web de control financiero para un grupo de 3 carnicerías relacionadas (
 - [x] **Dashboard mejorado con layout centrado y UI optimizada**
 - [x] **Datos de prueba de empleados creados**
 
+## ✅ Funcionalidades Completadas
+- [x] Estructura de documentación del proyecto
+- [x] Base de datos PostgreSQL configurada en Railway
+- [x] Proyecto Next.js 14 con TypeScript inicializado
+- [x] Esquema Prisma completo desplegado (13 tablas)
+- [x] shadcn/ui componentes configurados
+- [x] Estructura de carpetas según arquitectura
+- [x] Página principal con dashboard funcional
+- [x] Variables de entorno configuradas
+- [x] Servidor de desarrollo funcionando
+- [x] **Sistema de autenticación NextAuth.js completado**
+- [x] **Middleware de protección de rutas implementado**
+- [x] **Página de login con validación de credenciales**
+- [x] **Dashboard mejorado con layout centrado y UI optimizada**
+- [x] **Datos de prueba de empleados creados**
+- [x] **Módulo completo de cortes de caja implementado**
+- [x] **Formularios con React Hook Form + Zod configurados**
+- [x] **Sistema de notificaciones Sonner integrado**
+
 ## 🚧 En Progreso
-- [ ] Implementación del módulo de cortes de caja
-- [ ] Formularios con React Hook Form + Zod
+- [ ] Pruebas del módulo de cortes de caja
+- [ ] Implementación de endpoints para empresas y empleados
 
 ## 📝 Próximos Pasos
-1. Implementar interfaz de "dos niveles" para cortes de caja
-2. Desarrollar funcionalidad de captura manual de VENTA NETA
-3. Crear sistema de tags y búsqueda avanzada
-4. Implementar cálculos automáticos de efectivo esperado
-5. Desarrollar manejo de diferencias y adeudos a cajeras
+1. Probar funcionalidad completa del módulo de cortes
+2. Implementar datos reales de empresas y empleados en la BD
+3. Crear módulo de movimientos (ingresos/egresos)
+4. Implementar sistema de reportes básicos
+5. Desarrollar módulo de catálogos (empleados, clientes, proveedores)
 
 ## 🐛 Bugs Conocidos
 - ✅ Error de hidratación resuelto con suppressHydrationWarning

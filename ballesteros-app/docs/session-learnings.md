@@ -201,8 +201,132 @@ export async function middleware(request: NextRequest) {
 - [x] ✅ Tipos TypeScript extendidos para NextAuth
 - [x] ✅ Script de datos de prueba para empleados
 
-### 🔍 Para Investigar
-- [ ] Optimización de queries Prisma para el sistema de tags
-- [ ] Estrategias de validación con Zod para formularios complejos
-- [ ] Implementación de roles y permisos granulares
-- [ ] Optimización de middleware para mejor performance
+---
+
+## Sesión: 2025-09-21 (Parte 3) - Módulo de Cortes de Caja
+
+### ✅ Módulo Completo de Cortes de Caja Implementado
+
+#### Problema 7: Integración de React Hook Form con shadcn/ui Select
+**Contexto:** Los componentes Select de shadcn/ui no se integran directamente con React Hook Form
+
+**Solución aplicada:**
+```typescript
+// Usar setValue en lugar de register para Select
+<Select onValueChange={(value) => setValue('empresa_id', value)}>
+  <SelectTrigger>
+    <SelectValue placeholder="Selecciona empresa" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="1">Principal</SelectItem>
+  </SelectContent>
+</Select>
+
+// Validación de errores manual
+{errors.empresa_id && (
+  <p className="text-sm text-red-600 mt-1">{errors.empresa_id.message}</p>
+)}
+```
+
+**Aprendizaje:** Los componentes controlados de Radix UI requieren usar setValue() y watch() de React Hook Form en lugar de register().
+
+---
+
+#### Problema 8: Sistema de Notificaciones Toast
+**Contexto:** Implementar notificaciones para feedback del usuario
+
+**Error encontrado:**
+```
+The item at https://ui.shadcn.com/r/styles/new-york-v4/toast.json was not found
+```
+
+**Solución aplicada:**
+1. Instalar Sonner como alternativa: `npx shadcn@latest add sonner`
+2. Integrar Toaster en layout.tsx
+3. Usar toast.success() y toast.error() en lugar de objeto toast
+
+**Código relevante:**
+```typescript
+import { toast } from 'sonner'
+import { Toaster } from "@/components/ui/sonner"
+
+// En layout.tsx
+<SessionProvider>
+  {children}
+  <Toaster />
+</SessionProvider>
+
+// En componentes
+toast.success(`Corte #${corte.id} creado exitosamente`)
+toast.error("Error al crear corte")
+```
+
+**Aprendizaje:** Sonner es una excelente alternativa a los toast de shadcn/ui con API más simple y mejor UX.
+
+---
+
+### 🎯 Funcionalidades Completadas en Esta Sesión
+
+- [x] ✅ **Estructura completa del módulo de cortes de caja**
+  - `/dashboard/cortes` - Página principal con resumen
+  - `/dashboard/cortes/nuevo` - Formulario de creación
+
+- [x] ✅ **API endpoints completos**
+  - `GET /api/cortes` - Listar con filtros y paginación
+  - `POST /api/cortes` - Crear nuevo corte
+  - `GET /api/cortes/[id]` - Detalle específico
+  - `PUT /api/cortes/[id]` - Actualizar corte
+  - `DELETE /api/cortes/[id]` - Soft delete
+
+- [x] ✅ **Interfaz "dos niveles" implementada**
+  - Captura manual de VENTA NETA desde POS
+  - Cálculo automático de efectivo esperado (85% inicial)
+  - Entrada de efectivo real entregado
+  - Indicadores visuales de diferencias (sobrante/faltante)
+
+- [x] ✅ **Sistema de validación Zod completo**
+  - Esquemas para crear y actualizar cortes
+  - Validación de tipos de datos y rangos
+  - Transformación automática de strings a números
+  - Validación de formularios en tiempo real
+
+- [x] ✅ **React Hook Form integrado**
+  - Formulario controlado con validación
+  - Watch para recálculos automáticos
+  - Manejo de estados de carga y errores
+  - Integración con componentes shadcn/ui
+
+- [x] ✅ **Funcionalidades avanzadas**
+  - Generación automática de adeudos en `prestamos_empleado`
+  - Tolerancia configurable para diferencias ($50)
+  - Sistema de tags para búsqueda flexible
+  - Validación de cortes únicos por empresa/empleado/fecha/sesión
+  - Soft delete para mantener historial
+
+### 🏗️ Arquitectura Técnica Implementada
+
+**Frontend:**
+- React Hook Form + Zod para formularios robustos
+- shadcn/ui + Sonner para UI consistente
+- TypeScript para type safety completo
+- Next.js App Router para navegación moderna
+
+**Backend:**
+- API Routes con validación de sesión NextAuth
+- Prisma para queries type-safe
+- Validación Zod en endpoints
+- Manejo de errores HTTP apropiado
+
+**Base de Datos:**
+- Relaciones Prisma optimizadas
+- Constraints únicos para integridad
+- Índices implícitos en foreign keys
+- Soft delete para auditoría
+
+### 🔍 Para Investigar en Próximas Sesiones
+- [ ] ✅ Endpoints para cargar empresas y empleados reales desde BD
+- [ ] ✅ Implementación de historial de cortes con paginación
+- [ ] ✅ Sistema de búsqueda por tags y filtros avanzados
+- [ ] ✅ Cálculo dinámico de efectivo esperado basado en movimientos
+- [ ] ✅ Dashboard con métricas en tiempo real por empresa
+- [ ] ✅ Exportación de reportes de cortes a PDF/Excel
