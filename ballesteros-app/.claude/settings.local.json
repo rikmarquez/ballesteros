@@ -13,7 +13,12 @@
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
       "Bash(curl:*)",
-      "Bash(start http://localhost:3003/dashboard/cortes/2/editar)"
+      "Bash(start http://localhost:3003/dashboard/cortes/2/editar)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(set PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=si)",
+      "Bash(npx prisma:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

@@ -12,7 +12,7 @@ const createEmpleadoSchema = z.object({
   activo: z.boolean().optional().default(true)
 })
 
-// GET /api/empleados - Listar empleados
+// GET /api/empleados - Listar empleados (usando tabla entidades)
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
@@ -23,25 +23,52 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const activo = searchParams.get('activo')
     const puede_operar_caja = searchParams.get('puede_operar_caja')
+    const search = searchParams.get('search')
 
-    const where: any = {}
+    const where: any = {
+      es_empleado: true // Solo entidades que son empleados
+    }
+
     if (activo !== null) where.activo = activo === 'true'
     if (puede_operar_caja !== null) where.puede_operar_caja = puede_operar_caja === 'true'
 
-    const empleados = await prisma.empleado.findMany({
-      where: Object.keys(where).length > 0 ? where : undefined,
+    if (search) {
+      where.OR = [
+        { nombre: { contains: search, mode: 'insensitive' } },
+        { telefono: { contains: search, mode: 'insensitive' } },
+        { puesto: { contains: search, mode: 'insensitive' } }
+      ]
+    }
+
+    const empleados = await prisma.entidad.findMany({
+      where,
       orderBy: { nombre: 'asc' },
       include: {
         _count: {
           select: {
-            cortes: true,
-            prestamos: true
+            movimientos_empleado: true,
+            cortes: true
           }
         }
       }
     })
 
-    return NextResponse.json({ empleados })
+    // Formatear respuesta para compatibilidad con frontend existente
+    const empleadosFormateados = empleados.map(emp => ({
+      id: emp.id,
+      nombre: emp.nombre,
+      telefono: emp.telefono,
+      puesto: emp.puesto,
+      puede_operar_caja: emp.puede_operar_caja,
+      activo: emp.activo,
+      created_at: emp.created_at,
+      _count: {
+        cortes: emp._count.cortes,
+        prestamos: emp._count.movimientos_empleado // Aproximación
+      }
+    }))
+
+    return NextResponse.json({ empleados: empleadosFormateados })
   } catch (error) {
     console.error('Error al listar empleados:', error)
     return NextResponse.json(
@@ -51,7 +78,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/empleados - Crear nuevo empleado
+// POST /api/empleados - Crear nuevo empleado (usando tabla entidades)
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
@@ -63,8 +90,12 @@ export async function POST(request: NextRequest) {
     const validatedData = createEmpleadoSchema.parse(body)
 
     // Verificar que no exista un empleado con el mismo nombre
-    const empleadoExistente = await prisma.empleado.findFirst({
-      where: { nombre: validatedData.nombre }
+    const empleadoExistente = await prisma.entidad.findFirst({
+      where: {
+        nombre: validatedData.nombre,
+        es_empleado: true,
+        activo: true
+      }
     })
 
     if (empleadoExistente) {
@@ -74,11 +105,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const empleado = await prisma.empleado.create({
-      data: validatedData
+    // Crear empleado como entidad
+    const empleado = await prisma.entidad.create({
+      data: {
+        nombre: validatedData.nombre,
+        telefono: validatedData.telefono,
+        puesto: validatedData.puesto,
+        puede_operar_caja: validatedData.puede_operar_caja,
+        activo: validatedData.activo,
+        es_empleado: true,
+        es_cliente: false,
+        es_proveedor: false
+      }
     })
 
-    return NextResponse.json({ empleado }, { status: 201 })
+    // Formatear respuesta para compatibilidad
+    const empleadoFormateado = {
+      id: empleado.id,
+      nombre: empleado.nombre,
+      telefono: empleado.telefono,
+      puesto: empleado.puesto,
+      puede_operar_caja: empleado.puede_operar_caja,
+      activo: empleado.activo,
+      created_at: empleado.created_at
+    }
+
+    return NextResponse.json({ empleado: empleadoFormateado }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

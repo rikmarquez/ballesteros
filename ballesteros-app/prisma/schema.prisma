@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,277 +7,179 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Empresas del grupo (Principal, Express, Asadero)
 model Empresa {
-  id         Int      @id @default(autoincrement())
-  nombre     String   @db.VarChar(100)
-  activa     Boolean  @default(true)
-  created_at DateTime @default(now())
-
-  // Relaciones
-  clientes    Cliente[]
-  proveedores Proveedor[]
-  cortes      CorteCaja[]
+  id                 Int              @id @default(autoincrement())
+  nombre             String           @db.VarChar(100)
+  activa             Boolean?         @default(true)
+  created_at         DateTime?        @default(now()) @db.Timestamp(6)
+  cortes             Corte[]
+  cuentas            Cuenta[]
+  entidades_empresas EntidadEmpresa[]
+  movimientos        Movimiento[]
+  saldos             Saldo[]
 
   @@map("empresas")
 }
 
-// Empleados (compartido entre todas las empresas)
-model Empleado {
-  id                Int      @id @default(autoincrement())
-  nombre            String   @db.VarChar(255)
-  telefono          String?  @db.VarChar(20)
-  puesto            String?  @db.VarChar(100)
-  puede_operar_caja Boolean  @default(false)
-  activo            Boolean  @default(true)
-  created_at        DateTime @default(now())
+model Entidad {
+  id                   Int              @id @default(autoincrement())
+  nombre               String           @db.VarChar(255)
+  telefono             String?          @db.VarChar(20)
+  es_cliente           Boolean?         @default(false)
+  es_proveedor         Boolean?         @default(false)
+  es_empleado          Boolean?         @default(false)
+  puesto               String?          @db.VarChar(100)
+  puede_operar_caja    Boolean?         @default(false)
+  activo               Boolean?         @default(true)
+  created_at           DateTime?        @default(now()) @db.Timestamp(6)
+  cortes               Corte[]
+  entidades_empresas   EntidadEmpresa[]
+  movimientos_empleado Movimiento[]     @relation("MovimientoEmpleado")
+  movimientos_entidad  Movimiento[]     @relation("MovimientoEntidad")
+  saldos               Saldo[]
 
-  // Relaciones
-  cortes   CorteCaja[]
-  prestamos PrestamoEmpleado[]
-
-  @@map("empleados")
+  @@index([nombre], map: "idx_entidades_nombre")
+  @@index([es_cliente, es_proveedor, es_empleado], map: "idx_entidades_tipo")
+  @@map("entidades")
 }
 
-// Clientes por empresa
-model Cliente {
-  id             Int     @id @default(autoincrement())
-  empresa_id     Int
-  nombre         String  @db.VarChar(255)
-  telefono       String? @db.VarChar(20)
-  saldo_inicial  Decimal @default(0) @db.Decimal(10, 2)
-  created_at     DateTime @default(now())
+model EntidadEmpresa {
+  id            Int      @id @default(autoincrement())
+  entidad_id    Int
+  empresa_id    Int
+  tipo_relacion String   @db.VarChar(20)
+  activo        Boolean? @default(true)
+  empresa       Empresa  @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  entidad       Entidad  @relation(fields: [entidad_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  // Relaciones
-  empresa          Empresa            @relation(fields: [empresa_id], references: [id])
-  movimientos      MovimientoCliente[]
-  ventas_credito   VentaCorte[]
-  ingresos_turno   IngresoTurno[]
-
-  @@map("clientes")
+  @@unique([entidad_id, empresa_id, tipo_relacion])
+  @@map("entidades_empresas")
 }
 
-// Proveedores por empresa
-model Proveedor {
-  id         Int      @id @default(autoincrement())
-  empresa_id Int
-  nombre     String   @db.VarChar(255)
-  created_at DateTime @default(now())
+model Saldo {
+  id                   Int       @id @default(autoincrement())
+  entidad_id           Int
+  empresa_id           Int?
+  tipo_saldo           String    @db.VarChar(20)
+  saldo_inicial        Decimal?  @default(0) @db.Decimal(10, 2)
+  total_cargos         Decimal?  @default(0) @db.Decimal(10, 2)
+  total_abonos         Decimal?  @default(0) @db.Decimal(10, 2)
+  saldo_actual         Decimal?  @default(0) @db.Decimal(10, 2)
+  fecha_corte          DateTime? @db.Date
+  ultima_actualizacion DateTime? @default(now()) @db.Timestamp(6)
+  empresas             Empresa?  @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  entidad              Entidad   @relation(fields: [entidad_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  // Relaciones
-  empresa        Empresa          @relation(fields: [empresa_id], references: [id])
-  cuentas_pagar  CuentaPorPagar[]
-  pagos          PagoProveedor[]
-
-  @@map("proveedores")
+  @@unique([entidad_id, empresa_id, tipo_saldo])
+  @@map("saldos")
 }
 
-// Categorías de gastos (compartidas)
 model CategoriaGasto {
-  id     Int     @id @default(autoincrement())
-  nombre String  @db.VarChar(100)
-  tipo   String? @db.VarChar(50) // 'compra', 'servicio', 'mantenimiento', 'personal', 'otros'
-  activa Boolean @default(true)
-
-  // Relaciones
-  subcategorias   SubcategoriaGasto[]
-  egresos_turno   EgresoTurno[]
-  cuentas_pagar   CuentaPorPagar[]
+  id            Int                 @id @default(autoincrement())
+  nombre        String              @db.VarChar(100)
+  tipo          String?             @db.VarChar(50)
+  activa        Boolean?            @default(true)
+  movimientos   Movimiento[]
+  subcategorias SubcategoriaGasto[]
 
   @@map("categorias_gasto")
 }
 
-// Subcategorías de gastos
 model SubcategoriaGasto {
-  id           Int    @id @default(autoincrement())
+  id           Int            @id @default(autoincrement())
   categoria_id Int
-  nombre       String @db.VarChar(100)
-
-  // Relaciones
-  categoria     CategoriaGasto   @relation(fields: [categoria_id], references: [id])
-  egresos_turno EgresoTurno[]
-  cuentas_pagar CuentaPorPagar[]
+  nombre       String         @db.VarChar(100)
+  movimientos  Movimiento[]
+  categoria    CategoriaGasto @relation(fields: [categoria_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("subcategorias_gasto")
 }
 
-// Cortes de caja principales
-model CorteCaja {
-  id                 Int      @id @default(autoincrement())
-  empresa_id         Int
-  empleado_id        Int
-  fecha              DateTime @db.Date
-  sesion             Int      @default(1)
-  venta_neta         Decimal  @db.Decimal(10, 2) // Captura manual desde POS
-  efectivo_esperado  Decimal? @db.Decimal(10, 2) // Calculado
-  efectivo_real      Decimal? @db.Decimal(10, 2) // Entregado por cajera
-  diferencia         Decimal? @db.Decimal(10, 2) // Calculado
-  tags               String?  @db.Text // Etiquetas del corte
-  adeudo_generado    Boolean  @default(false)
-  estado             String   @default("activo") @db.VarChar(20)
-  created_at         DateTime @default(now())
+model Cuenta {
+  id                  Int          @id @default(autoincrement())
+  empresa_id          Int
+  tipo_cuenta         String       @db.VarChar(20)
+  nombre              String       @db.VarChar(100)
+  saldo_actual        Decimal?     @default(0) @db.Decimal(10, 2)
+  activa              Boolean?     @default(true)
+  created_at          DateTime?    @default(now()) @db.Timestamp(6)
+  empresa             Empresa      @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  movimientos_destino Movimiento[] @relation("CuentaDestino")
+  movimientos_origen  Movimiento[] @relation("CuentaOrigen")
 
-  // Relaciones
-  empresa        Empresa        @relation(fields: [empresa_id], references: [id])
-  empleado       Empleado       @relation(fields: [empleado_id], references: [id])
-  ventas         VentaCorte[]
-  cortesias      CortesiaCorte[]
-  ingresos_turno IngresoTurno[]
-  egresos_turno  EgresoTurno[]
-
-  @@unique([empresa_id, empleado_id, fecha, sesion])
-  @@map("cortes_caja")
+  @@map("cuentas")
 }
 
-// Ventas individuales dentro del corte (informativas)
-model VentaCorte {
-  id          Int      @id @default(autoincrement())
-  corte_id    Int
-  forma_pago  String   @db.VarChar(20) // 'efectivo', 'tarjeta', 'credito', 'transferencia'
-  monto       Decimal  @db.Decimal(10, 2)
-  cliente_id  Int? // Solo si es crédito
-  tags        String?  @db.Text
-  created_at  DateTime @default(now())
+model Corte {
+  id                  Int          @id @default(autoincrement())
+  empresa_id          Int
+  entidad_id          Int
+  fecha               DateTime     @db.Date
+  sesion              Int?         @default(1)
+  venta_neta          Decimal      @db.Decimal(10, 2)
+  venta_efectivo      Decimal?     @default(0) @db.Decimal(10, 2)
+  venta_credito       Decimal?     @default(0) @db.Decimal(10, 2)
+  venta_plataforma    Decimal?     @default(0) @db.Decimal(10, 2)
+  cobranza            Decimal?     @default(0) @db.Decimal(10, 2)
+  venta_tarjeta       Decimal?     @default(0) @db.Decimal(10, 2)
+  venta_transferencia Decimal?     @default(0) @db.Decimal(10, 2)
+  retiro_parcial      Decimal?     @default(0) @db.Decimal(10, 2)
+  gasto               Decimal?     @default(0) @db.Decimal(10, 2)
+  compra              Decimal?     @default(0) @db.Decimal(10, 2)
+  prestamo            Decimal?     @default(0) @db.Decimal(10, 2)
+  cortesia            Decimal?     @default(0) @db.Decimal(10, 2)
+  otros_retiros       Decimal?     @default(0) @db.Decimal(10, 2)
+  total_ingresos      Decimal?     @default(0) @db.Decimal(10, 2)
+  total_egresos       Decimal?     @default(0) @db.Decimal(10, 2)
+  efectivo_esperado   Decimal?     @default(0) @db.Decimal(10, 2)
+  diferencia          Decimal?     @default(0) @db.Decimal(10, 2)
+  adeudo_generado     Boolean?     @default(false)
+  estado              String?      @default("activo") @db.VarChar(20)
+  created_at          DateTime?    @default(now()) @db.Timestamp(6)
+  empresa             Empresa      @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empleado            Entidad      @relation(fields: [entidad_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  movimientos         Movimiento[]
 
-  // Relaciones
-  corte   CorteCaja @relation(fields: [corte_id], references: [id], onDelete: Cascade)
-  cliente Cliente?  @relation(fields: [cliente_id], references: [id])
-
-  @@map("ventas_corte")
+  @@unique([empresa_id, entidad_id, fecha, sesion])
+  @@index([empresa_id, fecha], map: "idx_cortes_empresa_fecha")
+  @@index([fecha], map: "idx_cortes_fecha")
+  @@map("cortes")
 }
 
-// Cortesías del corte
-model CortesiaCorte {
-  id           Int     @id @default(autoincrement())
-  corte_id     Int
-  monto        Decimal @db.Decimal(10, 2)
-  beneficiario String  @db.VarChar(255)
-  tags         String? @db.Text
+model Movimiento {
+  id                      Int                @id @default(autoincrement())
+  tipo_movimiento         String             @db.VarChar(50)
+  es_ingreso              Boolean
+  monto                   Decimal            @db.Decimal(10, 2)
+  fecha                   DateTime?          @default(now()) @db.Timestamp(6)
+  cuenta_origen_id        Int?
+  cuenta_destino_id       Int?
+  fecha_aplicacion        DateTime?          @db.Date
+  empresa_id              Int?
+  corte_id                Int?
+  entidad_relacionada_id  Int?
+  empleado_responsable_id Int?
+  categoria_id            Int?
+  subcategoria_id         Int?
+  forma_pago              String?            @db.VarChar(20)
+  plataforma              String?            @db.VarChar(50)
+  referencia              String?
+  beneficiario            String?            @db.VarChar(255)
+  comision                Decimal?           @default(0) @db.Decimal(10, 2)
+  created_at              DateTime?          @default(now()) @db.Timestamp(6)
+  categoria               CategoriaGasto?    @relation(fields: [categoria_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  corte                   Corte?             @relation(fields: [corte_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cuenta_destino          Cuenta?            @relation("CuentaDestino", fields: [cuenta_destino_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cuenta_origen           Cuenta?            @relation("CuentaOrigen", fields: [cuenta_origen_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empleado_responsable    Entidad?           @relation("MovimientoEmpleado", fields: [empleado_responsable_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresa                 Empresa?           @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  entidad_relacionada     Entidad?           @relation("MovimientoEntidad", fields: [entidad_relacionada_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subcategoria            SubcategoriaGasto? @relation(fields: [subcategoria_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  // Relaciones
-  corte CorteCaja @relation(fields: [corte_id], references: [id], onDelete: Cascade)
-
-  @@map("cortesias_corte")
-}
-
-// Ingresos durante el turno
-model IngresoTurno {
-  id         Int     @id @default(autoincrement())
-  corte_id   Int
-  tipo       String  @db.VarChar(50) // 'cobranza_efectivo', 'transferencia'
-  monto      Decimal @db.Decimal(10, 2)
-  cliente_id Int?
-  tags       String? @db.Text
-
-  // Relaciones
-  corte   CorteCaja @relation(fields: [corte_id], references: [id], onDelete: Cascade)
-  cliente Cliente?  @relation(fields: [cliente_id], references: [id])
-
-  @@map("ingresos_turno")
-}
-
-// Egresos durante el turno
-model EgresoTurno {
-  id               Int     @id @default(autoincrement())
-  corte_id         Int
-  tipo             String  @db.VarChar(50) // 'gasto', 'compra', 'prestamo', 'retiro'
-  monto            Decimal @db.Decimal(10, 2)
-  relacionado_id   Int? // empleado_id o proveedor_id según tipo
-  categoria_id     Int?
-  subcategoria_id  Int?
-  tags             String? @db.Text
-  descripcion      String? @db.Text
-
-  // Relaciones
-  corte        CorteCaja          @relation(fields: [corte_id], references: [id], onDelete: Cascade)
-  categoria    CategoriaGasto?    @relation(fields: [categoria_id], references: [id])
-  subcategoria SubcategoriaGasto? @relation(fields: [subcategoria_id], references: [id])
-
-  @@map("egresos_turno")
-}
-
-// Cuentas por pagar
-model CuentaPorPagar {
-  id               Int      @id @default(autoincrement())
-  proveedor_id     Int
-  fecha_compra     DateTime @db.Date
-  monto            Decimal  @db.Decimal(10, 2)
-  categoria_id     Int?
-  subcategoria_id  Int?
-  numero_factura   String?  @db.VarChar(100)
-  fecha_vencimiento DateTime? @db.Date
-  peso_cantidad    String?  @db.VarChar(100)
-  estado           String   @default("pendiente") @db.VarChar(20)
-  saldo_pendiente  Decimal  @db.Decimal(10, 2)
-  created_at       DateTime @default(now())
-
-  // Relaciones
-  proveedor    Proveedor          @relation(fields: [proveedor_id], references: [id])
-  categoria    CategoriaGasto?    @relation(fields: [categoria_id], references: [id])
-  subcategoria SubcategoriaGasto? @relation(fields: [subcategoria_id], references: [id])
-
-  @@map("cuentas_por_pagar")
-}
-
-// Pagos a proveedores
-model PagoProveedor {
-  id           Int      @id @default(autoincrement())
-  proveedor_id Int
-  fecha        DateTime @db.Date
-  monto        Decimal  @db.Decimal(10, 2)
-  forma_pago   String   @db.VarChar(20) // 'efectivo', 'transferencia'
-  referencia   String?  @db.Text
-  created_at   DateTime @default(now())
-
-  // Relaciones
-  proveedor Proveedor @relation(fields: [proveedor_id], references: [id])
-
-  @@map("pagos_proveedor")
-}
-
-// Movimientos de clientes (cuentas por cobrar)
-model MovimientoCliente {
-  id         Int      @id @default(autoincrement())
-  cliente_id Int
-  tipo       String   @db.VarChar(20) // 'venta', 'pago'
-  fecha      DateTime @db.Date
-  monto      Decimal  @db.Decimal(10, 2)
-  referencia String?  @db.Text
-  created_at DateTime @default(now())
-
-  // Relaciones
-  cliente Cliente @relation(fields: [cliente_id], references: [id])
-
-  @@map("movimientos_cliente")
-}
-
-// Préstamos a empleados
-model PrestamoEmpleado {
-  id          Int      @id @default(autoincrement())
-  empleado_id Int
-  tipo        String   @db.VarChar(50) // 'prestamo', 'pago', 'adeudo_faltante'
-  fecha       DateTime @db.Date
-  monto       Decimal  @db.Decimal(10, 2)
-  origen      String?  @db.VarChar(100) // 'corte_caja', 'caja_contadora'
-  corte_id    Int? // Si es adeudo por faltante
-  referencia  String?  @db.Text
-  created_at  DateTime @default(now())
-
-  // Relaciones
-  empleado Empleado @relation(fields: [empleado_id], references: [id])
-
-  @@map("prestamos_empleado")
-}
-
-// Caja de la contadora
-model CajaContadora {
-  id            Int      @id @default(autoincrement())
-  empresa_id    Int? // NULL si es caja compartida
-  fecha         DateTime @db.Date
-  saldo_inicial Decimal  @db.Decimal(10, 2)
-  saldo_final   Decimal  @db.Decimal(10, 2)
-  created_at    DateTime @default(now())
-
-  @@unique([empresa_id, fecha])
-  @@map("caja_contadora")
+  @@index([corte_id], map: "idx_movimientos_corte")
+  @@index([empresa_id, fecha], map: "idx_movimientos_empresa_fecha")
+  @@index([entidad_relacionada_id], map: "idx_movimientos_entidad")
+  @@index([fecha], map: "idx_movimientos_fecha")
+  @@index([tipo_movimiento], map: "idx_movimientos_tipo")
+  @@map("movimientos")
 }

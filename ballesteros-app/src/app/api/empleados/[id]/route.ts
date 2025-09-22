@@ -32,8 +32,11 @@ export async function GET(
       )
     }
 
-    const empleado = await prisma.empleado.findUnique({
-      where: { id: empleadoId },
+    const empleado = await prisma.entidad.findUnique({
+      where: {
+        id: empleadoId,
+        es_empleado: true
+      },
       include: {
         cortes: {
           select: {
@@ -46,13 +49,13 @@ export async function GET(
           orderBy: { fecha: 'desc' },
           take: 10
         },
-        prestamos: {
+        movimientos_empleado: {
           select: {
             id: true,
-            tipo: true,
+            tipo_movimiento: true,
             fecha: true,
             monto: true,
-            origen: true
+            referencia: true
           },
           orderBy: { fecha: 'desc' },
           take: 10
@@ -60,7 +63,7 @@ export async function GET(
         _count: {
           select: {
             cortes: true,
-            prestamos: true
+            movimientos_empleado: true
           }
         }
       }
@@ -107,8 +110,11 @@ export async function PUT(
     const validatedData = updateEmpleadoSchema.parse(body)
 
     // Verificar que el empleado existe
-    const empleadoExistente = await prisma.empleado.findUnique({
-      where: { id: empleadoId }
+    const empleadoExistente = await prisma.entidad.findUnique({
+      where: {
+        id: empleadoId,
+        es_empleado: true
+      }
     })
 
     if (!empleadoExistente) {
@@ -120,9 +126,10 @@ export async function PUT(
 
     // Si se está actualizando el nombre, verificar que no exista otro empleado con ese nombre
     if (validatedData.nombre) {
-      const otroEmpleado = await prisma.empleado.findFirst({
+      const otroEmpleado = await prisma.entidad.findFirst({
         where: {
           nombre: validatedData.nombre,
+          es_empleado: true,
           id: { not: empleadoId }
         }
       })
@@ -135,7 +142,7 @@ export async function PUT(
       }
     }
 
-    const empleado = await prisma.empleado.update({
+    const empleado = await prisma.entidad.update({
       where: { id: empleadoId },
       data: validatedData
     })
@@ -178,8 +185,11 @@ export async function DELETE(
     }
 
     // Verificar que el empleado existe
-    const empleado = await prisma.empleado.findUnique({
-      where: { id: empleadoId }
+    const empleado = await prisma.entidad.findUnique({
+      where: {
+        id: empleadoId,
+        es_empleado: true
+      }
     })
 
     if (!empleado) {
@@ -190,9 +200,9 @@ export async function DELETE(
     }
 
     // Verificar que no tenga cortes activos
-    const cortesActivos = await prisma.corteCaja.count({
+    const cortesActivos = await prisma.corte.count({
       where: {
-        empleado_id: empleadoId,
+        entidad_id: empleadoId,
         estado: 'activo'
       }
     })
@@ -208,7 +218,7 @@ export async function DELETE(
     }
 
     // Soft delete: marcar como inactivo
-    const empleadoDesactivado = await prisma.empleado.update({
+    const empleadoDesactivado = await prisma.entidad.update({
       where: { id: empleadoId },
       data: { activo: false }
     })

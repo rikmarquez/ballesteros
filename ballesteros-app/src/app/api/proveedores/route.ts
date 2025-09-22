@@ -6,10 +6,11 @@ import { z } from 'zod'
 // Esquema de validación para crear proveedor
 const createProveedorSchema = z.object({
   empresa_id: z.number().int().positive(),
-  nombre: z.string().min(1).max(255)
+  nombre: z.string().min(1).max(255),
+  telefono: z.string().max(20).optional()
 })
 
-// GET /api/proveedores - Listar proveedores
+// GET /api/proveedores - Listar proveedores (usando tabla entidades)
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
@@ -21,32 +22,75 @@ export async function GET(request: NextRequest) {
     const empresa_id = searchParams.get('empresa_id')
     const search = searchParams.get('search')
 
-    const where: any = {}
-    if (empresa_id) where.empresa_id = parseInt(empresa_id)
-    if (search) {
-      where.nombre = { contains: search, mode: 'insensitive' }
+    const where: any = {
+      es_proveedor: true // Solo entidades que son proveedores
     }
 
-    const proveedores = await prisma.proveedor.findMany({
-      where: Object.keys(where).length > 0 ? where : undefined,
+    if (search) {
+      where.OR = [
+        { nombre: { contains: search, mode: 'insensitive' } },
+        { telefono: { contains: search, mode: 'insensitive' } }
+      ]
+    }
+
+    // Construir query con filtro de empresa si se especifica
+    let proveedoresQuery: any = {
+      where,
       include: {
-        empresa: {
-          select: {
-            id: true,
-            nombre: true
+        entidades_empresas: {
+          where: {
+            tipo_relacion: 'proveedor',
+            activo: true,
+            ...(empresa_id && { empresa_id: parseInt(empresa_id) })
+          },
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
           }
         },
         _count: {
           select: {
-            cuentas_pagar: true,
-            pagos: true
+            movimientos_entidad: true,
+            saldos: true
           }
         }
       },
       orderBy: { nombre: 'asc' }
-    })
+    }
 
-    return NextResponse.json({ proveedores })
+    // Si filtran por empresa, añadir filtro en WHERE
+    if (empresa_id) {
+      where.entidades_empresas = {
+        some: {
+          empresa_id: parseInt(empresa_id),
+          tipo_relacion: 'proveedor',
+          activo: true
+        }
+      }
+    }
+
+    const proveedores = await prisma.entidad.findMany(proveedoresQuery)
+
+    // Formatear respuesta para compatibilidad
+    const proveedoresFormateados = proveedores.map(proveedor => ({
+      id: proveedor.id,
+      nombre: proveedor.nombre,
+      telefono: proveedor.telefono,
+      activo: proveedor.activo,
+      created_at: proveedor.created_at,
+      empresas: proveedor.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa_id,
+        empresa_nombre: rel.empresa.nombre,
+        activo: rel.activo
+      })),
+      _count: {
+        cuentas_pagar: proveedor._count.saldos, // Aproximación
+        pagos: proveedor._count.movimientos_entidad
+      }
+    }))
+
+    return NextResponse.json({ proveedores: proveedoresFormateados })
   } catch (error) {
     console.error('Error al listar proveedores:', error)
     return NextResponse.json(
@@ -56,7 +100,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/proveedores - Crear nuevo proveedor
+// POST /api/proveedores - Crear nuevo proveedor (usando tabla entidades)
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
@@ -79,34 +123,74 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verificar que no exista un proveedor con el mismo nombre en la misma empresa
-    const proveedorExistente = await prisma.proveedor.findFirst({
+    // Verificar que no exista un proveedor con el mismo nombre
+    const proveedorExistente = await prisma.entidad.findFirst({
       where: {
-        empresa_id: validatedData.empresa_id,
-        nombre: validatedData.nombre
+        nombre: validatedData.nombre,
+        es_proveedor: true,
+        activo: true
       }
     })
 
     if (proveedorExistente) {
       return NextResponse.json(
-        { error: 'Ya existe un proveedor con ese nombre en esta empresa' },
+        { error: 'Ya existe un proveedor con ese nombre' },
         { status: 400 }
       )
     }
 
-    const proveedor = await prisma.proveedor.create({
-      data: validatedData,
+    // Crear proveedor en transacción
+    const result = await prisma.$transaction(async (tx) => {
+      // Crear entidad proveedor
+      const nuevoProveedor = await tx.entidad.create({
+        data: {
+          nombre: validatedData.nombre,
+          telefono: validatedData.telefono,
+          es_proveedor: true,
+          es_empleado: false,
+          es_cliente: false,
+          activo: true
+        }
+      })
+
+      // Crear relación empresa-proveedor
+      await tx.entidadEmpresa.create({
+        data: {
+          entidad_id: nuevoProveedor.id,
+          empresa_id: validatedData.empresa_id,
+          tipo_relacion: 'proveedor',
+          activo: true
+        }
+      })
+
+      return nuevoProveedor
+    })
+
+    // Obtener proveedor completo para respuesta
+    const proveedorCompleto = await prisma.entidad.findUnique({
+      where: { id: result.id },
       include: {
-        empresa: {
-          select: {
-            id: true,
-            nombre: true
+        entidades_empresas: {
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
           }
         }
       }
     })
 
-    return NextResponse.json({ proveedor }, { status: 201 })
+    // Formatear respuesta para compatibilidad
+    const proveedorFormateado = {
+      id: proveedorCompleto!.id,
+      nombre: proveedorCompleto!.nombre,
+      telefono: proveedorCompleto!.telefono,
+      activo: proveedorCompleto!.activo,
+      created_at: proveedorCompleto!.created_at,
+      empresa: proveedorCompleto!.entidades_empresas[0]?.empresa
+    }
+
+    return NextResponse.json({ proveedor: proveedorFormateado }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

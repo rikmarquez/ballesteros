@@ -1,0 +1,232 @@
+// NUEVO SCHEMA BALLESTEROS - MIGRACIÓN COMPLETA
+// Arquitectura unificada con entidades, movimientos y cuentas
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Empresas del grupo (Principal, Express, Asadero)
+model Empresa {
+  id         Int      @id @default(autoincrement())
+  nombre     String   @db.VarChar(100)
+  activa     Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  // Relaciones
+  entidades_empresas EntidadEmpresa[]
+  cortes            Corte[]
+  cuentas           Cuenta[]
+  movimientos       Movimiento[]
+
+  @@map("empresas")
+}
+
+// Entidades unificadas (clientes, proveedores, empleados)
+model Entidad {
+  id       Int     @id @default(autoincrement())
+  nombre   String  @db.VarChar(255)
+  telefono String? @db.VarChar(20)
+
+  // Flags de tipo (pueden ser múltiples)
+  es_cliente   Boolean @default(false)
+  es_proveedor Boolean @default(false)
+  es_empleado  Boolean @default(false)
+
+  // Campos específicos de empleado
+  puesto            String? @db.VarChar(100)
+  puede_operar_caja Boolean @default(false)
+
+  // Estado general
+  activo     Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  // Relaciones
+  entidades_empresas    EntidadEmpresa[]
+  saldos               Saldo[]
+  movimientos_entidad  Movimiento[]       @relation("MovimientoEntidad")
+  movimientos_empleado Movimiento[]       @relation("MovimientoEmpleado")
+  cortes               Corte[]
+
+  // Constraint: al menos un tipo debe estar activo
+  @@map("entidades")
+}
+
+// Tabla pivot: relaciones entidad-empresa
+model EntidadEmpresa {
+  id            Int     @id @default(autoincrement())
+  entidad_id    Int
+  empresa_id    Int
+  tipo_relacion String  @db.VarChar(20) // 'cliente', 'proveedor'
+  activo        Boolean @default(true)
+
+  // Relaciones
+  entidad Entidad @relation(fields: [entidad_id], references: [id])
+  empresa Empresa @relation(fields: [empresa_id], references: [id])
+
+  @@unique([entidad_id, empresa_id, tipo_relacion])
+  @@map("entidades_empresas")
+}
+
+// Estados de cuenta por entidad y empresa
+model Saldo {
+  id             Int     @id @default(autoincrement())
+  entidad_id     Int
+  empresa_id     Int?
+  tipo_saldo     String  @db.VarChar(20) // 'cuenta_cobrar', 'cuenta_pagar', 'prestamo'
+  saldo_inicial  Decimal @default(0) @db.Decimal(10, 2)
+  total_cargos   Decimal @default(0) @db.Decimal(10, 2)
+  total_abonos   Decimal @default(0) @db.Decimal(10, 2)
+  saldo_actual   Decimal @default(0) @db.Decimal(10, 2)
+  fecha_corte    Date?
+  ultima_actualizacion DateTime @default(now())
+
+  // Relaciones
+  entidad Entidad @relation(fields: [entidad_id], references: [id])
+
+  @@unique([entidad_id, empresa_id, tipo_saldo])
+  @@map("saldos")
+}
+
+// Categorías de gastos (compartidas)
+model CategoriaGasto {
+  id     Int     @id @default(autoincrement())
+  nombre String  @db.VarChar(100)
+  tipo   String? @db.VarChar(50) // 'compra', 'servicio', 'mantenimiento', 'personal', 'otros'
+  activa Boolean @default(true)
+
+  // Relaciones
+  subcategorias SubcategoriaGasto[]
+  movimientos   Movimiento[]
+
+  @@map("categorias_gasto")
+}
+
+// Subcategorías de gastos
+model SubcategoriaGasto {
+  id           Int    @id @default(autoincrement())
+  categoria_id Int
+  nombre       String @db.VarChar(100)
+
+  // Relaciones
+  categoria   CategoriaGasto @relation(fields: [categoria_id], references: [id])
+  movimientos Movimiento[]
+
+  @@map("subcategorias_gasto")
+}
+
+// Sistema de cuentas (cajeras, efectivo_contadora, fiscal)
+model Cuenta {
+  id           Int     @id @default(autoincrement())
+  empresa_id   Int
+  tipo_cuenta  String  @db.VarChar(20) // 'cajera', 'efectivo_contadora', 'fiscal'
+  nombre       String  @db.VarChar(100)
+  saldo_actual Decimal @default(0) @db.Decimal(10, 2)
+  activa       Boolean @default(true)
+  created_at   DateTime @default(now())
+
+  // Relaciones
+  empresa             Empresa      @relation(fields: [empresa_id], references: [id])
+  movimientos_origen  Movimiento[] @relation("CuentaOrigen")
+  movimientos_destino Movimiento[] @relation("CuentaDestino")
+
+  @@map("cuentas")
+}
+
+// Cortes de caja con campos específicos por tipo de movimiento
+model Corte {
+  id         Int      @id @default(autoincrement())
+  empresa_id Int
+  entidad_id Int      // empleado que hizo el corte
+  fecha      DateTime @db.Date
+  sesion     Int      @default(1)
+
+  // CAPTURA MANUAL
+  venta_neta Decimal @db.Decimal(10, 2) // Desde POS
+
+  // INGRESOS (actualizados automáticamente)
+  venta_efectivo   Decimal @default(0) @db.Decimal(10, 2)
+  venta_credito    Decimal @default(0) @db.Decimal(10, 2)
+  venta_plataforma Decimal @default(0) @db.Decimal(10, 2)
+  cobranza         Decimal @default(0) @db.Decimal(10, 2)
+
+  // EGRESOS (actualizados automáticamente)
+  venta_tarjeta       Decimal @default(0) @db.Decimal(10, 2)
+  venta_transferencia Decimal @default(0) @db.Decimal(10, 2)
+  retiro_parcial      Decimal @default(0) @db.Decimal(10, 2)
+  gasto               Decimal @default(0) @db.Decimal(10, 2)
+  compra              Decimal @default(0) @db.Decimal(10, 2)
+  prestamo            Decimal @default(0) @db.Decimal(10, 2)
+  cortesia            Decimal @default(0) @db.Decimal(10, 2)
+  otros_retiros       Decimal @default(0) @db.Decimal(10, 2)
+
+  // CÁLCULOS AUTOMÁTICOS
+  total_ingresos     Decimal @default(0) @db.Decimal(10, 2)
+  total_egresos      Decimal @default(0) @db.Decimal(10, 2)
+  efectivo_esperado  Decimal @default(0) @db.Decimal(10, 2)
+  diferencia         Decimal @default(0) @db.Decimal(10, 2)
+
+  // METADATOS
+  adeudo_generado Boolean  @default(false)
+  estado          String   @default("activo") @db.VarChar(20)
+  created_at      DateTime @default(now())
+
+  // Relaciones
+  empresa     Empresa      @relation(fields: [empresa_id], references: [id])
+  empleado    Entidad      @relation(fields: [entidad_id], references: [id])
+  movimientos Movimiento[]
+
+  @@unique([empresa_id, entidad_id, fecha, sesion])
+  @@map("cortes")
+}
+
+// Tabla unificada de movimientos
+model Movimiento {
+  id              Int      @id @default(autoincrement())
+  tipo_movimiento String   @db.VarChar(50)
+  es_ingreso      Boolean
+  monto           Decimal  @db.Decimal(10, 2)
+  fecha           DateTime @default(now())
+
+  // Cuentas afectadas
+  cuenta_origen_id  Int?
+  cuenta_destino_id Int?
+  fecha_aplicacion  Date? // Para movimientos diferidos
+
+  // Relaciones principales
+  empresa_id Int?
+  corte_id   Int?
+
+  // Entidades relacionadas
+  entidad_relacionada_id  Int? // Cliente/proveedor involucrado
+  empleado_responsable_id Int? // Quién hizo la transacción
+
+  // Categorización
+  categoria_id    Int?
+  subcategoria_id Int?
+
+  // Metadatos
+  forma_pago    String? @db.VarChar(20) // 'efectivo', 'tarjeta', 'transferencia'
+  plataforma    String? @db.VarChar(50) // 'uber_eats', 'rappi', 'didi_food'
+  referencia    String? @db.Text // Folios, tickets, descripciones
+  beneficiario  String? @db.VarChar(255) // Para cortesías
+  comision      Decimal @default(0) @db.Decimal(10, 2) // Para tarjetas/plataformas
+
+  created_at DateTime @default(now())
+
+  // Relaciones
+  empresa            Empresa?           @relation(fields: [empresa_id], references: [id])
+  corte              Corte?             @relation(fields: [corte_id], references: [id])
+  cuenta_origen      Cuenta?            @relation("CuentaOrigen", fields: [cuenta_origen_id], references: [id])
+  cuenta_destino     Cuenta?            @relation("CuentaDestino", fields: [cuenta_destino_id], references: [id])
+  entidad_relacionada Entidad?          @relation("MovimientoEntidad", fields: [entidad_relacionada_id], references: [id])
+  empleado_responsable Entidad?         @relation("MovimientoEmpleado", fields: [empleado_responsable_id], references: [id])
+  categoria          CategoriaGasto?    @relation(fields: [categoria_id], references: [id])
+  subcategoria       SubcategoriaGasto? @relation(fields: [subcategoria_id], references: [id])
+
+  @@map("movimientos")
+}

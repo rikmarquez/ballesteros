@@ -7,9 +7,9 @@ Hola Claude Code! Al iniciar cada sesión, por favor:
 ### 1. Lee la documentación del proyecto
 Debes leer estos archivos EN ORDEN:
 
-1. **`docs/project-status.md`** - Para conocer el estado actual
-2. **`docs/technical-specs.md`** - Para entender la arquitectura
-3. **`docs/session-learnings.md`** - Para aprender de sesiones anteriores
+1. **`docs/project-status-new.md`** - Para conocer el estado actual (ARQUITECTURA REFACTORIZADA)
+2. **`docs/technical-specs-new.md`** - Para entender la nueva arquitectura unificada
+3. **`docs/session-learnings-new.md`** - Para aprender de sesiones anteriores y decisiones críticas
 
 ### 2. Contexto del Proyecto
 
@@ -35,9 +35,9 @@ Después de leer los archivos:
 ### 5. Al Finalizar la Sesión
 
 Recuérdame actualizar:
-- [ ] `project-status.md` - Estado y próximos pasos
-- [ ] `technical-specs.md` - Si hubo cambios en arquitectura/BD/endpoints
-- [ ] `session-learnings.md` - Problemas encontrados y soluciones
+- [ ] `project-status-new.md` - Estado y próximos pasos
+- [ ] `technical-specs-new.md` - Si hubo cambios en arquitectura/BD/endpoints
+- [ ] `session-learnings-new.md` - Problemas encontrados y soluciones
 
 ---
 
