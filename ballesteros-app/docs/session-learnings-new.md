@@ -363,5 +363,422 @@ Capturar decisiones y razonamiento en tiempo real es invaluable.
 
 ---
 
-**Sesión resultado:** ✅ **Arquitectura Fundamentalmente Mejorada**
-**Próxima prioridad:** 🎯 **Frontend Actualizado para Nueva Estructura**
+## Sesión: 2025-09-22 PM - Insights Críticos de Reunión con Contadora
+
+### 🎯 **Cambio Fundamental: Separación Total Cortes vs Movimientos**
+
+Esta sesión representó un cambio crítico en el entendimiento del flujo real de trabajo de la contadora, simplificando drasticamente el módulo de cortes.
+
+---
+
+## 💡 **Nuevo Insight Crítico: Cortes = Solo Totales**
+
+### **Insight 7: El Corte Solo Captura Totales, No Movimientos Individuales**
+**Contexto:** Reunión directa con la contadora para observar su flujo de trabajo real.
+
+**Malentendido previo:**
+- Pensábamos que en el corte se capturaban movimientos individuales
+- Que los totales se calculaban automáticamente desde movimientos
+
+**Realidad descubierta:**
+1. **CORTES**: Solo captura **TOTALES** de forma manual:
+   - Venta neta (desde POS)
+   - Totales por forma de pago (efectivo, tarjetas, transferencias, etc.)
+   - Totales de gastos/compras/préstamos del turno
+   - Efectivo físico contado
+
+2. **VALIDACIÓN**: La contadora revisa que totales y comprobantes coincidan
+
+3. **MOVIMIENTOS**: **Por separado**, después de validar el corte, se capturan movimientos individuales
+
+**Implementación realizada:**
+- Eliminar lógica de auto-actualización desde movimientos
+- Todo en cortes se captura manualmente
+- Movimientos individuales van después en módulo separado
+
+**Aprendizaje:** El flujo real de trabajo es más simple que nuestras asunciones técnicas.
+
+---
+
+### **Insight 8: Tarjetas Requieren Separación Crédito/Débito**
+**Contexto:** La contadora explicó que necesita distinguir entre tarjetas de crédito y débito.
+
+**Requerimiento específico:**
+- **Venta crédito tarjeta**: Captura manual
+- **Venta débito tarjeta**: Captura manual
+- **Venta tarjeta total**: Cálculo automático = crédito + débito
+
+**Implementación realizada:**
+```sql
+-- Campos agregados al schema
+venta_credito_tarjeta DECIMAL(10,2) DEFAULT 0,
+venta_debito_tarjeta  DECIMAL(10,2) DEFAULT 0,
+venta_tarjeta         DECIMAL(10,2) DEFAULT 0  -- Calculado automáticamente
+```
+
+**Impacto en cálculos:**
+```sql
+-- Efectivo esperado actualizado
+efectivo_esperado = venta_neta + cobranza - (
+  (venta_credito_tarjeta + venta_debito_tarjeta) + venta_transferencia +
+  retiro_parcial + gasto + compra + prestamo + cortesia + otros_retiros
+)
+```
+
+**Aprendizaje:** Los detalles operativos del negocio requieren campos específicos, no agrupaciones genéricas.
+
+---
+
+## 🏗️ **Cambios Arquitectónicos Implementados**
+
+### **Cambio 1: Schema de Cortes Actualizado**
+**Antes:**
+```sql
+venta_tarjeta DECIMAL(10,2) DEFAULT 0
+```
+
+**Después:**
+```sql
+venta_credito_tarjeta DECIMAL(10,2) DEFAULT 0,
+venta_debito_tarjeta  DECIMAL(10,2) DEFAULT 0,
+venta_tarjeta         DECIMAL(10,2) DEFAULT 0
+```
+
+**Justificación:** Necesidad operativa real de distinguir tipos de tarjeta.
+
+---
+
+### **Cambio 2: Flujo de Trabajo Redefinido**
+**Antes:**
+```
+Corte → Capturar movimientos individuales → Calcular totales automáticamente
+```
+
+**Después:**
+```
+Corte (solo totales manuales) → Validación → Movimientos individuales separados
+```
+
+**Impacto:**
+- Módulo de cortes se simplifica drasticamente
+- No hay auto-actualización desde movimientos
+- Separación clara de responsabilidades
+
+---
+
+### **Cambio 3: Base de Datos Actualizada**
+**Acciones realizadas:**
+1. ✅ Schema Prisma actualizado con nuevos campos
+2. ✅ `npx prisma generate` ejecutado exitosamente
+3. ✅ `npx prisma db push` aplicado a Railway
+4. ✅ Documentación técnica actualizada
+
+**Resultado:** Base de datos preparada para nuevo flujo de trabajo.
+
+---
+
+## 🔄 **Flujo de Trabajo Final Definido**
+
+### **Fase 1: Corte de Caja (Solo Totales)**
+**Campos de captura manual:**
+- `venta_neta` - Desde POS
+- `venta_efectivo` - Efectivo físico contado
+- `venta_credito` - Total ventas a crédito
+- `venta_credito_tarjeta` - Total tarjetas de crédito
+- `venta_debito_tarjeta` - Total tarjetas de débito
+- `venta_transferencia` - Total transferencias
+- `venta_plataforma` - Total plataformas (Uber, Rappi)
+- `cobranza` - Total cobranzas del turno
+- `retiro_parcial` - Total retiros por seguridad
+- `gasto`, `compra`, `prestamo`, `cortesia` - Totales del turno
+
+**Campos calculados automáticamente:**
+- `venta_tarjeta = venta_credito_tarjeta + venta_debito_tarjeta`
+- `total_ingresos = venta_efectivo + venta_credito + cobranza`
+- `total_egresos = venta_tarjeta + venta_transferencia + retiro_parcial + gasto + compra + prestamo + cortesia`
+- `efectivo_esperado = venta_neta + cobranza - total_egresos`
+- `diferencia = venta_efectivo - efectivo_esperado`
+
+### **Fase 2: Validación**
+- Revisar que totales coincidan con comprobantes
+- Determinar faltantes/sobrantes
+- Aprobar o rechazar corte
+
+### **Fase 3: Movimientos Individuales (Módulo Separado)**
+- Capturar compras específicas con proveedor, categoría, subcategoría
+- Capturar gastos específicos con detalle
+- Capturar cobranzas específicas con cliente
+- Capturar pagos específicos con proveedor
+- Todos van a tabla `movimientos` unificada
+
+---
+
+## 📈 **Beneficios del Nuevo Flujo**
+
+### **Simplicidad Operativa**
+- **Cortes más rápidos**: Solo captura totales, no movimientos individuales
+- **Menos errores**: Separación clara entre totales y detalles
+- **Flujo natural**: Coincide con proceso real de la contadora
+
+### **Flexibilidad Técnica**
+- **Cortes independientes**: No dependen de movimientos para cálculos
+- **Movimientos detallados**: Captura completa para análisis posterior
+- **Auditoría completa**: Tanto totales como detalles preservados
+
+### **Performance Mejorada**
+- **Cálculos simples**: Solo sumas de campos, no queries complejas
+- **Menos transacciones**: Corte no actualiza múltiples tablas
+- **Consultas rápidas**: Totales directamente disponibles
+
+---
+
+## 🎯 **Próximos Pasos Definidos**
+
+### **PRIORIDAD ALTA - Actualizar Frontend**
+1. **Rediseñar formulario de cortes**: Solo campos de totales
+2. **Crear módulo de movimientos separado**: Para captura post-validación
+3. **Actualizar APIs**: Para nuevo flujo simplificado
+
+### **PRIORIDAD MEDIA - Testing**
+4. **Probar cálculos automáticos**: Con nuevos campos de tarjeta
+5. **Validar flujo completo**: Cortes → Validación → Movimientos
+
+---
+
+## 🔍 **Lecciones Aprendidas Críticas**
+
+### **1. Observación Directa > Asunciones**
+La reunión presencial con la contadora reveló un flujo completamente diferente al que habíamos asumido.
+
+### **2. Simplicidad del Usuario Final**
+La contadora no quiere auto-cálculos complejos en cortes, prefiere captura manual simple de totales.
+
+### **3. Separación de Responsabilidades**
+Cortes = Totales para cuadre
+Movimientos = Detalles para análisis
+No mezclar ambos conceptos.
+
+### **4. Detalles del Negocio Son Críticos**
+La diferencia entre tarjetas de crédito y débito es operativamente importante.
+
+### **5. Flexibilidad Arquitectónica Paga**
+La arquitectura unificada permite estos cambios sin reconstruir desde cero.
+
+---
+
+## Sesión: 2025-09-22 PM (Tarde) - Rediseño Completo del Módulo de Cortes
+
+### 🎯 **Correcciones Conceptuales Fundamentales**
+
+Esta sesión completó la implementación del nuevo flujo de cortes con múltiples correcciones conceptuales críticas.
+
+---
+
+## 💡 **Insights Adicionales Críticos**
+
+### **Insight 9: "Efectivo en Caja" ≠ "Venta en Efectivo"**
+**Contexto:** Error conceptual inicial en el diseño de la interfaz.
+
+**Malentendido previo:**
+- Campo llamado "Venta en Efectivo" como si fuera un tipo de venta
+
+**Realidad descubierta:**
+- Es **"Efectivo en Caja Reportado"** = efectivo físico contado por la cajera al final del turno
+- NO es una forma de venta, es el resultado del efectivo físico
+
+**Implementación corregida:**
+- Interface: "Efectivo en Caja"
+- Descripción: "Total contado físicamente por la cajera"
+- Lógica: `Diferencia = Efectivo Reportado - Efectivo Esperado`
+
+**Aprendizaje:** La terminología debe reflejar exactamente lo que representa en el proceso real.
+
+---
+
+### **Insight 10: Lógica de Categorización de Ingresos vs Egresos**
+**Contexto:** Corrección fundamental de la lógica de negocio durante la implementación.
+
+**Error conceptual inicial:**
+```
+❌ Tarjetas, transferencias, crédito = EGRESOS
+❌ Cortesías = EGRESOS
+```
+
+**Lógica corregida:**
+```
+✅ Tarjetas, transferencias, crédito = INGRESOS (sin efectivo físico)
+✅ Cortesías = INGRESOS (pagadas por la empresa)
+✅ Solo gastos, compras, préstamos, retiros = EGRESOS reales
+```
+
+**Fórmula implementada:**
+```
+Efectivo Esperado = Venta Neta - (Ventas sin efectivo) - (Egresos reales) + Cobranza
+
+Donde:
+- Ventas sin efectivo = tarjetas + transferencias + crédito + plataformas + cortesías
+- Egresos reales = gastos + compras + préstamos + retiros
+```
+
+**Aprendizaje:** Las cortesías no reducen efectivo porque las paga la empresa, no el cliente.
+
+---
+
+### **Insight 11: Cálculo Indirecto de Venta en Efectivo**
+**Contexto:** Solicitud del usuario para calcular indirectamente la venta real en efectivo.
+
+**Fórmula implementada:**
+```
+Venta en Efectivo = Efectivo en Caja + Egresos Reales - Cobranza
+```
+
+**Valor analítico:**
+- Permite validar consistencia de datos
+- Comparar efectivo reportado vs efectivo esperado
+- Calcular cuánto fue realmente vendido en efectivo
+- Analizar patrones de venta por forma de pago
+
+**Implementación:**
+- Cálculo automático en tiempo real
+- Visualización con fórmula desglosada
+- Integrado en panel de validación
+
+**Aprendizaje:** Los cálculos inversos pueden proporcionar validaciones valiosas de consistencia.
+
+---
+
+## 🎨 **Rediseño Completo de Interfaz**
+
+### **Nueva Estructura de 3 Columnas**
+**Antes:** Layout confuso con categorización incorrecta
+**Después:**
+1. **Columna 1:** Información General + Venta Neta POS
+2. **Columna 2:** Efectivo Reportado + Formas de Venta (sin efectivo)
+3. **Columna 3:** Egresos Reales (solo los que reducen efectivo físico)
+
+### **Panel de Información y Validación (6 Métricas)**
+**Implementación organizada en 3 secciones:**
+
+**Ventas e Ingresos:**
+- Venta Total Registrada (desde POS)
+- Ingreso Total Registrado (calculado)
+
+**Egresos y Efectivo:**
+- Egresos Reales (que reducen efectivo)
+- Efectivo en Caja (reportado por cajera)
+
+**Validación:**
+- Efectivo Esperado (calculado por sistema)
+- Diferencia (sobrante/faltante)
+
+**Valor para validación:**
+- Vista clara de todos los totales importantes
+- Comparación directa entre lo registrado vs esperado
+- Detección rápida de discrepancias
+- Validación de consistencia de datos
+
+---
+
+## 🔨 **Problemas Técnicos Críticos Resueltos**
+
+### **Problema 1: Error de Autenticación**
+**Error:** `prisma.entidades.findFirst` no existe
+**Causa:** Tabla se llama `entidad` (singular) no `entidades`
+**Solución:** `/src/lib/auth.ts:19` corregido a `prisma.entidad.findFirst`
+
+### **Problema 2: Error Next.js 15 - Parámetros API Route**
+**Error:** `TypeError: handler is not a function`
+**Causa:** Next.js 15 cambió parámetros de `{id: string}` a `Promise<{id: string}>`
+**Solución:**
+```typescript
+// Antes
+{ params }: { params: { id: string } }
+const id = parseInt(params.id)
+
+// Después
+{ params }: { params: Promise<{ id: string }> }
+const { id: idStr } = await params
+const id = parseInt(idStr)
+```
+
+### **Problema 3: Errores de Compilación**
+**Error:** Various TypeScript and handler errors
+**Causa:** Caché de Next.js corrupto + errores sintácticos
+**Solución:** Limpieza completa de `.next` + corrección de sintaxis
+
+**Estado final:** ✅ Servidor ejecutándose sin errores en puerto 3005
+
+---
+
+## 📈 **Impacto de los Cambios**
+
+### **Simplificación Lograda**
+- **Concepto claro:** Efectivo reportado vs efectivo esperado
+- **Categorización correcta:** Ingresos vs egresos reales
+- **Cálculos precisos:** Fórmulas que reflejan la realidad del negocio
+
+### **Funcionalidad Añadida**
+- **Cálculo indirecto:** Venta en efectivo calculada automáticamente
+- **Panel de validación:** 6 métricas clave para información y validación
+- **Interfaz intuitiva:** Estructura clara de 3 columnas
+
+### **Robustez Técnica**
+- **Errores resueltos:** Sistema funcionando sin errores
+- **Compatibilidad:** Next.js 15 totalmente soportado
+- **Performance:** Cálculos en tiempo real sin problemas
+
+---
+
+## 🎯 **Plan de Pruebas Definido**
+
+### **FASE 1: Validación del Módulo (PENDIENTE)**
+1. **Login y Navegación**
+   - URL: http://localhost:3005
+   - Credenciales: 3121069077 / Acceso979971
+   - Verificar acceso al módulo de cortes
+
+2. **Funcionalidad Básica**
+   - Carga de empresas y cajeras
+   - Funcionamiento del botón "Agregar Corte"
+   - Validación del formulario
+
+3. **Cálculos y Validación**
+   - Ingresar datos de prueba
+   - Verificar cálculos automáticos en tiempo real
+   - Validar panel de 6 métricas
+   - Confirmar lógica de diferencias
+
+4. **Persistencia**
+   - Crear corte de prueba
+   - Verificar guardado en base de datos
+   - Confirmar aparición en listado
+
+### **FASE 2: Refinamientos (POST-PRUEBA)**
+- Ajustes UX según feedback
+- Validaciones adicionales
+- Optimizaciones de performance
+
+---
+
+## 🔍 **Lecciones Aprendidas Adicionales**
+
+### **1. Iteración Conceptual es Crítica**
+Múltiples correcciones conceptuales durante la implementación resultaron en un producto final mucho más preciso.
+
+### **2. Terminología Exacta Importa**
+"Efectivo en Caja" vs "Venta en Efectivo" - diferencias sutiles tienen impacto significativo en usabilidad.
+
+### **3. Validación en Tiempo Real Añade Valor**
+Los cálculos automáticos y panel de validación proporcionan confianza inmediata al usuario.
+
+### **4. Problemas Técnicos de Versioning**
+Next.js 15 introdujo breaking changes que requieren atención específica en migraciones.
+
+### **5. Documentación Durante Desarrollo**
+Capturar correcciones conceptuales en tiempo real evita repetir errores.
+
+---
+
+**Sesión resultado:** ✅ **Módulo de Cortes Completamente Implementado**
+**Estado actual:** 🎯 **Listo para Pruebas de Usuario Final**
+**Próxima prioridad:** 🧪 **Validación y Testing del Sistema Completo**

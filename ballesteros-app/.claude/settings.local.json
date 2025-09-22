@@ -18,7 +18,8 @@
       "Bash(npx prisma db push:*)",
       "Bash(set PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=si)",
       "Bash(npx prisma:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(tasklist:*)"
     ],
     "deny": [],
     "ask": []

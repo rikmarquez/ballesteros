@@ -24,7 +24,23 @@ Después de leer los archivos:
    - Qué está completo
    - Qué está en progreso
    - Problemas conocidos
-3. Pregúntame: **"¿En qué vamos a trabajar hoy?"**
+3. **IMPORTANTE**: Revisar el plan de trabajo actual definido en el TODO
+
+### 🎯 Plan de Trabajo Actual (Post-Refactorización)
+
+**FASE 1: Migración Frontend (PRIORIDAD ALTA)**
+1. ✅ Verificar que el servidor de desarrollo funciona correctamente
+2. 🔄 Actualizar módulo de cortes para usar nueva API `/api/movimientos`
+3. 🔄 Migrar formularios de entidades para trabajar con estructura unificada
+4. 🔄 Probar flujos end-to-end de creación de movimientos
+5. 🔄 Validar cálculos automáticos de cortes con nuevos campos específicos
+
+**FASE 2: Nuevas Funcionalidades**
+6. 🔄 Implementar dashboard con vista unificada multi-empresa
+
+**CONTEXTO**: Acabamos de completar una refactorización mayor de la base de datos (2025-09-22) de 13 tablas fragmentadas a 9 tablas unificadas. Todas las APIs backend están actualizadas, pero el frontend necesita migración.
+
+4. Pregúntame: **"¿Continuamos con el plan definido o hay algo específico en lo que quieres trabajar?"**
 
 ### 4. Durante la Sesión
 

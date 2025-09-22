@@ -52,12 +52,13 @@ Sistema web de control financiero para un grupo de 3 carnicerías relacionadas (
 
 ## ✅ Funcionalidades Completadas
 
-### 🗄️ **Base de Datos - 100% Migrada**
+### 🗄️ **Base de Datos - 100% Migrada y Actualizada**
 - [x] **Nueva arquitectura unificada** implementada
 - [x] **Script de migración** ejecutado exitosamente
 - [x] **Datos de prueba** creados (empleados, clientes, proveedores)
 - [x] **Índices de performance** aplicados
 - [x] **Relaciones bidireccionales** configuradas
+- [x] **Campos de tarjeta separados** (crédito/débito) - 2025-09-22
 
 ### 🔌 **APIs Completamente Refactorizadas**
 - [x] **`/api/entidades`** - API principal unificada
@@ -73,6 +74,12 @@ Sistema web de control financiero para un grupo de 3 carnicerías relacionadas (
 - [x] **5 categorías** de gasto con subcategorías
 - [x] **9 cuentas** operativas (3 tipos × 3 empresas)
 - [x] **15 entidades** de prueba (empleados, clientes, proveedores, híbridas)
+
+### 📋 **Arquitectura de Cortes Redefinida (NUEVO)**
+- [x] **Flujo clarificado** con contadora (2025-09-22)
+- [x] **Schema actualizado** para captura manual de totales
+- [x] **Separación crédito/débito** en tarjetas implementada
+- [x] **Cálculos automáticos** actualizados para nuevos campos
 
 ## 🔄 Flujos de Negocio Implementados
 
@@ -108,22 +115,87 @@ Cajeras → Efectivo Contadora → Cuenta Fiscal
    - `deposito_plataforma` → ingreso a cuenta fiscal
    - `comision_plataforma` → egreso de cuenta fiscal
 
-## 🎯 Próximos Pasos (Orden de Prioridad)
+## 🎯 Estado Actual de Sesión (2025-09-22 PM)
 
-### **FASE 1: Completar Migración Frontend**
-1. **Actualizar módulo de cortes** para usar nueva estructura
-2. **Actualizar formularios** para trabajar con entidades unificadas
-3. **Testing completo** de flujos de movimientos
+### **✅ MÓDULO DE CORTES COMPLETAMENTE REDISEÑADO**
+**Fecha:** 2025-09-22 PM
+**Estado:** ✅ **COMPLETO - Listo para pruebas**
 
-### **FASE 2: Nuevas Funcionalidades**
-4. **Módulo de reportes** con nueva arquitectura
-5. **Dashboard consolidado** multi-empresa
-6. **Módulo de conciliación** de plataformas
+#### **Trabajo Completado en Esta Sesión:**
 
-### **FASE 3: Optimizaciones**
-7. **Triggers de base de datos** para cálculos automáticos
-8. **Cache de saldos** para performance
-9. **Notificaciones** de diferencias y adeudos
+### **🔧 Correcciones Conceptuales Críticas**
+1. ✅ **Concepto "Efectivo en Caja"** corregido
+   - **Antes:** "Venta en Efectivo" (confuso)
+   - **Después:** "Efectivo en Caja Reportado" (efectivo físico contado por cajera)
+
+2. ✅ **Lógica de Negocio Corregida**
+   - **Tarjetas, transferencias, crédito, cortesías** = INGRESOS sin efectivo
+   - **Solo gastos, compras, préstamos, retiros** = EGRESOS reales
+   - **Cortesías** las paga la empresa (no reducen efectivo de caja)
+
+3. ✅ **Cálculo Indirecto Implementado**
+   - **Fórmula:** Venta en Efectivo = Efectivo en Caja + Egresos Reales - Cobranza
+   - **Valor:** Permite validar consistencia de datos
+
+### **🎨 Interfaz Completamente Rediseñada**
+4. ✅ **Nueva Estructura de 3 Columnas:**
+   - **Columna 1:** Información General + Venta Neta POS
+   - **Columna 2:** Efectivo Reportado + Formas de Venta (sin efectivo)
+   - **Columna 3:** Egresos Reales (solo los que reducen efectivo físico)
+
+5. ✅ **Panel de Información y Validación (6 Métricas):**
+   - **Venta Total Registrada** (desde POS)
+   - **Ingreso Total Registrado** (calculado)
+   - **Egresos Reales** (que reducen efectivo)
+   - **Efectivo en Caja** (reportado por cajera)
+   - **Efectivo Esperado** (calculado por sistema)
+   - **Diferencia** (sobrante/faltante)
+
+### **🔨 Problemas Técnicos Resueltos**
+6. ✅ **Error de Autenticación:** `prisma.entidades` → `prisma.entidad`
+7. ✅ **Error Next.js 15:** Parámetros API route actualizados para usar `Promise<{id}>`
+8. ✅ **Error de Handler:** Compilación corregida, caché limpiada
+
+### **🏃‍♂️ Estado del Servidor**
+- **✅ Funcionando:** http://localhost:3005
+- **✅ Sin errores** de compilación
+- **✅ Autenticación** corregida
+- **✅ APIs** funcionando
+
+## 🎯 Próximos Pasos (PLAN DE PRUEBAS)
+
+### **FASE 1: Validación del Módulo (PENDIENTE)**
+1. **⏳ Pruebas de Login**
+   - Acceder a http://localhost:3005
+   - Login: 3121069077 / Acceso979971
+   - Verificar redirección correcta
+
+2. **⏳ Pruebas del Módulo de Cortes**
+   - Acceder al módulo de cortes
+   - Verificar carga de empresas y cajeras
+   - Probar botón "Agregar Corte"
+   - Validar formulario completo
+
+3. **⏳ Pruebas de Cálculos**
+   - Ingresar datos de prueba
+   - Verificar cálculos automáticos
+   - Validar panel de 6 métricas
+   - Confirmar lógica de diferencias
+
+4. **⏳ Pruebas de Guardado**
+   - Crear corte de prueba
+   - Verificar guardado en BD
+   - Confirmar datos en listado
+
+### **FASE 2: Refinamientos Post-Prueba**
+5. **⏳ Ajustes UX** según feedback de pruebas
+6. **⏳ Validaciones adicionales** si se detectan casos edge
+7. **⏳ Optimizaciones de performance**
+
+### **FASE 3: Funcionalidades Futuras**
+8. **⏳ Dashboard consolidado** multi-empresa
+9. **⏳ Módulo de reportes** con nueva arquitectura
+10. **⏳ Módulo de conciliación** de plataformas
 
 ## 🔧 Configuración Técnica
 

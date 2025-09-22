@@ -16,31 +16,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
 
-        const empleado = await prisma.empleado.findFirst({
+        const entidad = await prisma.entidad.findFirst({
           where: {
             telefono: credentials.email as string,
-            activo: true
+            activo: true,
+            es_empleado: true
           }
         })
 
-        if (!empleado) {
+        if (!entidad) {
           return null
         }
 
         // Por simplicidad, usaremos el nombre como contraseña temporal
         // En producción, deberías usar hashes de contraseñas reales
-        const isPasswordValid = credentials.password === empleado.nombre.toLowerCase()
+        // Caso especial para Ricardo Marquez
+        let isPasswordValid = false
+        if (entidad.telefono === '3121069077') {
+          isPasswordValid = credentials.password === 'Acceso979971'
+        } else {
+          isPasswordValid = credentials.password === entidad.nombre.toLowerCase()
+        }
 
         if (!isPasswordValid) {
           return null
         }
 
         return {
-          id: empleado.id.toString(),
-          name: empleado.nombre,
-          email: empleado.telefono || "",
-          puesto: empleado.puesto || "",
-          puede_operar_caja: empleado.puede_operar_caja
+          id: entidad.id.toString(),
+          name: entidad.nombre,
+          email: entidad.telefono || "",
+          puesto: entidad.puesto || "",
+          puede_operar_caja: entidad.puede_operar_caja
         }
       }
     })

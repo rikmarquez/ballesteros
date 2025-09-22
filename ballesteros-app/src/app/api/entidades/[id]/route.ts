@@ -23,10 +23,11 @@ const entidadUpdateSchema = z.object({
 // GET /api/entidades/[id] - Obtener entidad específica
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id: idStr } = await params
+    const id = parseInt(idStr)
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -121,10 +122,11 @@ export async function GET(
 // PUT /api/entidades/[id] - Actualizar entidad
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id: idStr } = await params
+    const id = parseInt(idStr)
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -257,10 +259,11 @@ export async function PUT(
 // DELETE /api/entidades/[id] - Soft delete de entidad
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id: idStr } = await params
+    const id = parseInt(idStr)
 
     if (isNaN(id)) {
       return NextResponse.json(

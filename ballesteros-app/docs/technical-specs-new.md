@@ -114,8 +114,8 @@ CREATE TABLE "cuentas" (
 - **`efectivo_contadora`**: Consolidación de efectivo
 - **`fiscal`**: Movimientos bancarios (tarjetas, transferencias)
 
-### **Cortes Optimizados: `cortes`**
-Campos específicos por tipo de movimiento para cálculos automáticos.
+### **Cortes Simplificados: `cortes` (ACTUALIZADO 2025-09-22)**
+Solo captura totales de forma manual - sin auto-actualización desde movimientos.
 
 ```sql
 CREATE TABLE "cortes" (
@@ -125,24 +125,26 @@ CREATE TABLE "cortes" (
     fecha DATE NOT NULL,
     sesion INTEGER DEFAULT 1,
 
-    -- CAPTURA MANUAL
+    -- CAPTURA MANUAL (TODO)
     venta_neta DECIMAL(10,2) NOT NULL, -- Desde POS
 
-    -- INGRESOS (actualizados automáticamente)
-    venta_efectivo DECIMAL(10,2) DEFAULT 0,
-    venta_credito DECIMAL(10,2) DEFAULT 0,
-    venta_plataforma DECIMAL(10,2) DEFAULT 0,
-    cobranza DECIMAL(10,2) DEFAULT 0,
+    -- INGRESOS (captura manual)
+    venta_efectivo DECIMAL(10,2) DEFAULT 0,    -- Efectivo físico contado
+    venta_credito DECIMAL(10,2) DEFAULT 0,     -- Total ventas a crédito
+    venta_plataforma DECIMAL(10,2) DEFAULT 0,  -- Total plataformas
+    cobranza DECIMAL(10,2) DEFAULT 0,          -- Total cobranzas
 
-    -- EGRESOS (actualizados automáticamente)
-    venta_tarjeta DECIMAL(10,2) DEFAULT 0,
-    venta_transferencia DECIMAL(10,2) DEFAULT 0,
-    retiro_parcial DECIMAL(10,2) DEFAULT 0,
-    gasto DECIMAL(10,2) DEFAULT 0,
-    compra DECIMAL(10,2) DEFAULT 0,
-    prestamo DECIMAL(10,2) DEFAULT 0,
-    cortesia DECIMAL(10,2) DEFAULT 0,
-    otros_retiros DECIMAL(10,2) DEFAULT 0,
+    -- EGRESOS (captura manual)
+    venta_credito_tarjeta DECIMAL(10,2) DEFAULT 0,  -- NUEVO: Tarjetas crédito
+    venta_debito_tarjeta DECIMAL(10,2) DEFAULT 0,   -- NUEVO: Tarjetas débito
+    venta_tarjeta DECIMAL(10,2) DEFAULT 0,          -- Calculado: crédito + débito
+    venta_transferencia DECIMAL(10,2) DEFAULT 0,    -- Total transferencias
+    retiro_parcial DECIMAL(10,2) DEFAULT 0,         -- Total retiros seguridad
+    gasto DECIMAL(10,2) DEFAULT 0,                  -- Total gastos turno
+    compra DECIMAL(10,2) DEFAULT 0,                 -- Total compras turno
+    prestamo DECIMAL(10,2) DEFAULT 0,               -- Total préstamos turno
+    cortesia DECIMAL(10,2) DEFAULT 0,               -- Total cortesías turno
+    otros_retiros DECIMAL(10,2) DEFAULT 0,          -- Otros retiros
 
     -- CÁLCULOS AUTOMÁTICOS
     total_ingresos DECIMAL(10,2) DEFAULT 0,
@@ -157,6 +159,8 @@ CREATE TABLE "cortes" (
     UNIQUE(empresa_id, entidad_id, fecha, sesion)
 );
 ```
+
+**CAMBIO CRÍTICO:** Ya no hay auto-actualización desde tabla `movimientos`. Todo se captura manualmente.
 
 ### **Estados de Cuenta: `saldos`**
 Cargos y abonos por entidad y empresa.
@@ -289,14 +293,43 @@ Gestión centralizada de todos los movimientos.
 }
 ```
 
-## 🔄 Flujos de Negocio Técnicos
+## 🔄 Flujos de Negocio Técnicos (ACTUALIZADO 2025-09-22)
 
-### **Flujo de Creación de Movimiento**
+### **Flujo Simplificado: Cortes vs Movimientos**
+
+#### **1. Flujo de Corte (Solo Totales)**
+```sql
+-- Crear corte con totales capturados manualmente
+INSERT INTO cortes (
+    empresa_id, entidad_id, fecha, sesion,
+    venta_neta,
+    venta_efectivo, venta_credito, venta_plataforma, cobranza,
+    venta_credito_tarjeta, venta_debito_tarjeta,
+    venta_transferencia, retiro_parcial, gasto, compra, prestamo, cortesia
+) VALUES (...);
+
+-- Calcular automáticamente
+UPDATE cortes SET
+    venta_tarjeta = venta_credito_tarjeta + venta_debito_tarjeta,
+    total_ingresos = venta_efectivo + venta_credito + cobranza,
+    total_egresos = venta_tarjeta + venta_transferencia + retiro_parcial +
+                   gasto + compra + prestamo + cortesia + otros_retiros,
+    efectivo_esperado = venta_neta + cobranza - total_egresos,
+    diferencia = venta_efectivo - efectivo_esperado
+WHERE id = corte_id;
+```
+
+#### **2. Flujo de Movimiento Individual (Post-Validación)**
 ```sql
 BEGIN TRANSACTION;
 
--- 1. Crear movimiento
-INSERT INTO movimientos (...);
+-- 1. Crear movimiento individual
+INSERT INTO movimientos (
+    tipo_movimiento, es_ingreso, monto, fecha,
+    cuenta_origen_id, cuenta_destino_id,
+    empresa_id, entidad_relacionada_id,
+    empleado_responsable_id, categoria_id, referencia
+) VALUES (...);
 
 -- 2. Actualizar cuenta origen (si aplica)
 UPDATE cuentas SET saldo_actual = saldo_actual - monto
@@ -306,42 +339,41 @@ WHERE id = cuenta_origen_id;
 UPDATE cuentas SET saldo_actual = saldo_actual + monto
 WHERE id = cuenta_destino_id;
 
--- 4. Actualizar campo específico en corte (si aplica)
-UPDATE cortes SET venta_efectivo = venta_efectivo + monto
-WHERE id = corte_id;
-
--- 5. Actualizar saldo entidad (si es cuenta por cobrar/pagar)
+-- 4. Actualizar saldo entidad (si es cuenta por cobrar/pagar)
 UPDATE saldos SET total_cargos = total_cargos + monto
 WHERE entidad_id = entidad_relacionada_id;
+
+-- NOTA: Ya NO se actualiza el corte desde movimientos individuales
 
 COMMIT;
 ```
 
-### **Mapeo Tipo Movimiento → Campo Corte**
+### **Separación Clara: Cortes vs Movimientos (NUEVO FLUJO)**
+
+#### **Cortes (Solo Totales)**
+- **NO** hay mapeo de movimientos individuales a campos de corte
+- **TODO** se captura manualmente como totales
+- **Objetivo**: Cuadre rápido de caja
+
+#### **Movimientos (Detalles Individuales)**
+- **Post-validación** del corte
+- **Cada compra/gasto/cobranza** se registra por separado
+- **Objetivo**: Análisis detallado y trazabilidad
+
 ```javascript
-const mapeoTipos = {
-  'venta_efectivo': 'venta_efectivo',
-  'venta_credito': 'venta_credito',
-  'venta_tarjeta': 'venta_tarjeta',
-  'venta_transferencia': 'venta_transferencia',
-  'venta_plataforma': 'venta_plataforma',
-  'cobranza': 'cobranza',
-  'retiro_parcial': 'retiro_parcial',
-  'gasto': 'gasto',
-  'compra': 'compra',
-  'prestamo': 'prestamo',
-  'cortesia': 'cortesia',
-  'otros_retiros': 'otros_retiros'
-}
+// YA NO SE USA - Mapeo eliminado
+// Los cortes y movimientos son independientes
 ```
 
 ### **Cálculos Automáticos en Cortes**
 ```sql
--- Efectivo esperado
+-- Efectivo esperado (ACTUALIZADO para campos separados de tarjeta)
 efectivo_esperado = venta_neta + cobranza - (
   venta_tarjeta + venta_transferencia + retiro_parcial +
   gasto + compra + prestamo + cortesia + otros_retiros
 )
+
+-- Donde venta_tarjeta = venta_credito_tarjeta + venta_debito_tarjeta
 
 -- Diferencia
 diferencia = venta_efectivo - efectivo_esperado

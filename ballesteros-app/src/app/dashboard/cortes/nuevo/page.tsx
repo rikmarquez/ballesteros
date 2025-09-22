@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Plus, Trash2, Calculator, DollarSign, Loader2, TrendingUp, TrendingDown } from 'lucide-react'
+import { ArrowLeft, Calculator, DollarSign, Loader2, TrendingUp, TrendingDown, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { calcularCamposCorte } from '@/lib/validations/cortes'
 
 interface Empresa {
   id: number
@@ -18,80 +19,60 @@ interface Empresa {
   activa: boolean
 }
 
-interface Empleado {
+interface Entidad {
   id: number
   nombre: string
-  puesto: string
+  puesto: string | null
   puede_operar_caja: boolean
   activo: boolean
-}
-
-interface Cliente {
-  id: number
-  nombre: string
-  empresa_id: number
-}
-
-interface CategoriaGasto {
-  id: number
-  nombre: string
-  tipo: string
-  subcategorias?: SubcategoriaGasto[]
-}
-
-interface SubcategoriaGasto {
-  id: number
-  nombre: string
-  categoria_id: number
-}
-
-interface MovimientoEfectivo {
-  id: string
-  tipo: 'venta_efectivo' | 'cobranza' | 'retiro_parcial' | 'venta_tarjeta' | 'venta_transferencia' | 'gasto' | 'compra' | 'prestamo' | 'cortesia' | 'otros_retiros'
-  monto: number
-  cliente_id?: number
-  categoria_id?: number
-  subcategoria_id?: number
-  relacionado_id?: number
-  descripcion?: string
-  beneficiario?: string // Para cortesías
+  es_empleado: boolean
 }
 
 export default function NuevoCorteePage() {
   const router = useRouter()
-  const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
 
   // Datos de catálogos
   const [empresas, setEmpresas] = useState<Empresa[]>([])
-  const [empleados, setEmpleados] = useState<Empleado[]>([])
-  const [clientes, setClientes] = useState<Cliente[]>([])
-  const [categorias, setCategorias] = useState<CategoriaGasto[]>([])
+  const [entidades, setEntidades] = useState<Entidad[]>([])
 
-  // Datos del corte
+  // Datos del corte (NUEVO FLUJO SIMPLIFICADO)
   const [corteData, setCorteData] = useState({
     empresa_id: '',
-    empleado_id: '',
+    entidad_id: '',
     fecha: new Date().toISOString().split('T')[0],
     sesion: 1,
-    venta_neta: 0, // Captura manual del POS
-    tags: ''
-  })
 
-  // Movimientos del turno
-  const [movimientos, setMovimientos] = useState<MovimientoEfectivo[]>([])
-  const [efectivoReal, setEfectivoReal] = useState<number>(0)
+    // CAPTURA MANUAL (desde POS)
+    venta_neta: 0,
+
+    // EFECTIVO REPORTADO POR CAJERA
+    venta_efectivo: 0, // Efectivo físico contado en caja
+    venta_credito: 0,
+    venta_plataforma: 0,
+    cobranza: 0,
+
+    // EGRESOS (captura manual)
+    venta_credito_tarjeta: 0,
+    venta_debito_tarjeta: 0,
+    venta_transferencia: 0,
+    retiro_parcial: 0,
+    gasto: 0,
+    compra: 0,
+    prestamo: 0,
+    cortesia: 0,
+    otros_retiros: 0
+  })
 
   // Función para cargar datos de catálogos
   const cargarDatos = async () => {
     try {
       setLoadingData(true)
 
-      const [empresasRes, empleadosRes, categoriasRes] = await Promise.all([
+      const [empresasRes, entidadesRes] = await Promise.all([
         fetch('/api/empresas?activa=true'),
-        fetch('/api/empleados?activo=true&puede_operar_caja=true'),
-        fetch('/api/categorias?activa=true&incluir_subcategorias=true')
+        fetch('/api/entidades?tipo=empleado&activo=true&puede_operar_caja=true')
       ])
 
       if (empresasRes.ok) {
@@ -99,14 +80,9 @@ export default function NuevoCorteePage() {
         setEmpresas(data.empresas)
       }
 
-      if (empleadosRes.ok) {
-        const data = await empleadosRes.json()
-        setEmpleados(data.empleados)
-      }
-
-      if (categoriasRes.ok) {
-        const data = await categoriasRes.json()
-        setCategorias(data.categorias)
+      if (entidadesRes.ok) {
+        const data = await entidadesRes.json()
+        setEntidades(data.entidades)
       }
     } catch (error) {
       console.error('Error cargando datos:', error)
@@ -116,646 +92,23 @@ export default function NuevoCorteePage() {
     }
   }
 
-  // Cargar clientes cuando se selecciona empresa
-  const cargarClientes = async (empresaId: string) => {
-    try {
-      const response = await fetch(`/api/clientes?empresa_id=${empresaId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setClientes(data.clientes)
-      }
-    } catch (error) {
-      console.error('Error cargando clientes:', error)
-    }
-  }
-
-  // Cálculos automáticos según el flujo correcto
-  const calcularTotales = () => {
-    // Entradas de efectivo
-    const ventaEfectivo = movimientos.filter(m => m.tipo === 'venta_efectivo').reduce((sum, m) => sum + m.monto, 0)
-    const cobranza = movimientos.filter(m => m.tipo === 'cobranza').reduce((sum, m) => sum + m.monto, 0)
-
-    // Salidas de efectivo
-    const retirosParciales = movimientos.filter(m => m.tipo === 'retiro_parcial').reduce((sum, m) => sum + m.monto, 0)
-    const ventaTarjeta = movimientos.filter(m => m.tipo === 'venta_tarjeta').reduce((sum, m) => sum + m.monto, 0)
-    const ventaTransferencia = movimientos.filter(m => m.tipo === 'venta_transferencia').reduce((sum, m) => sum + m.monto, 0)
-    const gastos = movimientos.filter(m => m.tipo === 'gasto').reduce((sum, m) => sum + m.monto, 0)
-    const compras = movimientos.filter(m => m.tipo === 'compra').reduce((sum, m) => sum + m.monto, 0)
-    const prestamos = movimientos.filter(m => m.tipo === 'prestamo').reduce((sum, m) => sum + m.monto, 0)
-    const cortesias = movimientos.filter(m => m.tipo === 'cortesia').reduce((sum, m) => sum + m.monto, 0)
-    const otrosRetiros = movimientos.filter(m => m.tipo === 'otros_retiros').reduce((sum, m) => sum + m.monto, 0)
-
-    const totalSalidas = retirosParciales + ventaTarjeta + ventaTransferencia + gastos + compras + prestamos + cortesias + otrosRetiros
-
-    // Cálculo principal: Efectivo Esperado = (Venta Neta + Cobranza) - (Todas las salidas)
-    const efectivoEsperado = (corteData.venta_neta + cobranza) - totalSalidas
-    const diferencia = efectivoReal - efectivoEsperado
-
-    return {
-      ventaEfectivo,
-      cobranza,
-      retirosParciales,
-      ventaTarjeta,
-      ventaTransferencia,
-      gastos,
-      compras,
-      prestamos,
-      cortesias,
-      otrosRetiros,
-      totalSalidas,
-      efectivoEsperado,
-      diferencia
-    }
-  }
-
-  const totales = calcularTotales()
-
   useEffect(() => {
     cargarDatos()
   }, [])
 
-  useEffect(() => {
-    if (corteData.empresa_id) {
-      cargarClientes(corteData.empresa_id)
-    }
-  }, [corteData.empresa_id])
+  // Cálculos automáticos
+  const camposCalculados = calcularCamposCorte(corteData)
 
-  // Funciones para manejar movimientos
-  const agregarMovimiento = (tipo: MovimientoEfectivo['tipo']) => {
-    const nuevoMovimiento: MovimientoEfectivo = {
-      id: Date.now().toString(),
-      tipo,
-      monto: 0,
-      descripcion: ''
-    }
-    setMovimientos([...movimientos, nuevoMovimiento])
+  const handleInputChange = (field: string, value: number) => {
+    setCorteData(prev => ({
+      ...prev,
+      [field]: value
+    }))
   }
-
-  const eliminarMovimiento = (id: string) => {
-    setMovimientos(movimientos.filter(m => m.id !== id))
-  }
-
-  const actualizarMovimiento = (id: string, campo: string, valor: any) => {
-    setMovimientos(movimientos.map(m => m.id === id ? { ...m, [campo]: valor } : m))
-  }
-
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 1:
-        return renderInformacionGeneral()
-      case 2:
-        return renderVentaNeta()
-      case 3:
-        return renderMovimientosEfectivo()
-      case 4:
-        return renderResumenFinal()
-      default:
-        return null
-    }
-  }
-
-  const renderInformacionGeneral = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Información General del Corte</CardTitle>
-        <CardDescription>Datos básicos del corte de caja</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="empresa">Empresa</Label>
-            <Select
-              value={corteData.empresa_id}
-              onValueChange={(value) => setCorteData({...corteData, empresa_id: value})}
-              disabled={loadingData}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={loadingData ? "Cargando..." : "Selecciona empresa"} />
-              </SelectTrigger>
-              <SelectContent>
-                {empresas.map((empresa) => (
-                  <SelectItem key={empresa.id} value={empresa.id.toString()}>
-                    {empresa.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="empleado">Cajera</Label>
-            <Select
-              value={corteData.empleado_id}
-              onValueChange={(value) => setCorteData({...corteData, empleado_id: value})}
-              disabled={loadingData}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={loadingData ? "Cargando..." : "Selecciona cajera"} />
-              </SelectTrigger>
-              <SelectContent>
-                {empleados.map((empleado) => (
-                  <SelectItem key={empleado.id} value={empleado.id.toString()}>
-                    {empleado.nombre} ({empleado.puesto})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="fecha">Fecha</Label>
-            <Input
-              id="fecha"
-              type="date"
-              value={corteData.fecha}
-              onChange={(e) => setCorteData({...corteData, fecha: e.target.value})}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="sesion">Sesión</Label>
-            <Input
-              id="sesion"
-              type="number"
-              min="1"
-              value={corteData.sesion}
-              onChange={(e) => setCorteData({...corteData, sesion: parseInt(e.target.value)})}
-            />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-
-  const renderVentaNeta = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <DollarSign className="h-5 w-5" />
-          Venta Neta del POS
-        </CardTitle>
-        <CardDescription>Captura manual del total de ventas reportado por el sistema POS</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="max-w-md">
-          <Label htmlFor="venta_neta">Venta Neta Total (del POS)</Label>
-          <Input
-            id="venta_neta"
-            type="number"
-            step="0.01"
-            value={corteData.venta_neta}
-            onChange={(e) => setCorteData({...corteData, venta_neta: parseFloat(e.target.value) || 0})}
-            className="text-lg font-medium"
-            placeholder="0.00"
-          />
-          <p className="text-sm text-gray-500 mt-2">
-            Ingresa el total de ventas del día según el reporte del POS
-          </p>
-        </div>
-
-        {corteData.venta_neta > 0 && (
-          <div className="p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-medium text-blue-800 mb-2">Venta Neta Capturada</h3>
-            <p className="text-2xl font-bold text-blue-600">
-              ${corteData.venta_neta.toFixed(2)}
-            </p>
-            <p className="text-sm text-blue-700 mt-1">
-              Esta es la base para calcular el efectivo esperado
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-
-  const renderMovimientosEfectivo = () => (
-    <div className="space-y-6">
-      {/* Entradas de Efectivo */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-green-600" />
-            Entradas de Efectivo
-          </CardTitle>
-          <CardDescription>Movimientos que AUMENTAN el efectivo en caja</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              onClick={() => agregarMovimiento('venta_efectivo')}
-              variant="outline"
-              className="h-20 flex flex-col gap-2"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Venta en Efectivo</span>
-            </Button>
-            <Button
-              onClick={() => agregarMovimiento('cobranza')}
-              variant="outline"
-              className="h-20 flex flex-col gap-2"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Cobranza a Clientes</span>
-            </Button>
-          </div>
-
-          {/* Mostrar entradas */}
-          {movimientos.filter(m => ['venta_efectivo', 'cobranza'].includes(m.tipo)).map((movimiento) => (
-            <div key={movimiento.id} className="flex gap-4 p-4 border rounded-lg bg-green-50">
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <Label>Tipo</Label>
-                  <Select
-                    value={movimiento.tipo}
-                    onValueChange={(value) => actualizarMovimiento(movimiento.id, 'tipo', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="venta_efectivo">Venta en Efectivo</SelectItem>
-                      <SelectItem value="cobranza">Cobranza a Cliente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>Monto</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={movimiento.monto}
-                    onChange={(e) => actualizarMovimiento(movimiento.id, 'monto', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-
-                {movimiento.tipo === 'cobranza' && (
-                  <div>
-                    <Label>Cliente</Label>
-                    <Select
-                      value={movimiento.cliente_id?.toString() || ''}
-                      onValueChange={(value) => actualizarMovimiento(movimiento.id, 'cliente_id', parseInt(value))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clientes.map((cliente) => (
-                          <SelectItem key={cliente.id} value={cliente.id.toString()}>
-                            {cliente.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                <div>
-                  <Label>Descripción</Label>
-                  <Input
-                    value={movimiento.descripcion || ''}
-                    onChange={(e) => actualizarMovimiento(movimiento.id, 'descripcion', e.target.value)}
-                    placeholder="Opcional"
-                  />
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => eliminarMovimiento(movimiento.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-
-          <div className="p-4 bg-green-100 rounded-lg">
-            <h4 className="font-medium text-green-800">Total Entradas: ${(totales.ventaEfectivo + totales.cobranza).toFixed(2)}</h4>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Salidas de Efectivo */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <TrendingDown className="h-5 w-5 text-red-600" />
-            Salidas de Efectivo
-          </CardTitle>
-          <CardDescription>Movimientos que REDUCEN el efectivo en caja</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button
-              onClick={() => agregarMovimiento('retiro_parcial')}
-              variant="outline"
-              className="h-16 flex flex-col gap-1 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Retiro Parcial</span>
-            </Button>
-            <Button
-              onClick={() => agregarMovimiento('venta_tarjeta')}
-              variant="outline"
-              className="h-16 flex flex-col gap-1 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Venta Tarjeta</span>
-            </Button>
-            <Button
-              onClick={() => agregarMovimiento('venta_transferencia')}
-              variant="outline"
-              className="h-16 flex flex-col gap-1 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Venta Transfer.</span>
-            </Button>
-            <Button
-              onClick={() => agregarMovimiento('gasto')}
-              variant="outline"
-              className="h-16 flex flex-col gap-1 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Gasto</span>
-            </Button>
-            <Button
-              onClick={() => agregarMovimiento('compra')}
-              variant="outline"
-              className="h-16 flex flex-col gap-1 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Compra</span>
-            </Button>
-            <Button
-              onClick={() => agregarMovimiento('prestamo')}
-              variant="outline"
-              className="h-16 flex flex-col gap-1 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Préstamo</span>
-            </Button>
-            <Button
-              onClick={() => agregarMovimiento('cortesia')}
-              variant="outline"
-              className="h-16 flex flex-col gap-1 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Cortesía</span>
-            </Button>
-            <Button
-              onClick={() => agregarMovimiento('otros_retiros')}
-              variant="outline"
-              className="h-16 flex flex-col gap-1 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Otros Retiros</span>
-            </Button>
-          </div>
-
-          {/* Mostrar salidas */}
-          {movimientos.filter(m => !['venta_efectivo', 'cobranza'].includes(m.tipo)).map((movimiento) => (
-            <div key={movimiento.id} className="flex gap-4 p-4 border rounded-lg bg-red-50">
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div>
-                  <Label>Tipo</Label>
-                  <Select
-                    value={movimiento.tipo}
-                    onValueChange={(value) => actualizarMovimiento(movimiento.id, 'tipo', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="retiro_parcial">Retiro Parcial</SelectItem>
-                      <SelectItem value="venta_tarjeta">Venta Tarjeta</SelectItem>
-                      <SelectItem value="venta_transferencia">Venta Transferencia</SelectItem>
-                      <SelectItem value="gasto">Gasto</SelectItem>
-                      <SelectItem value="compra">Compra</SelectItem>
-                      <SelectItem value="prestamo">Préstamo</SelectItem>
-                      <SelectItem value="cortesia">Cortesía</SelectItem>
-                      <SelectItem value="otros_retiros">Otros Retiros</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>Monto</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={movimiento.monto}
-                    onChange={(e) => actualizarMovimiento(movimiento.id, 'monto', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-
-                {(movimiento.tipo === 'gasto' || movimiento.tipo === 'compra') && (
-                  <div>
-                    <Label>Categoría</Label>
-                    <Select
-                      value={movimiento.categoria_id?.toString() || ''}
-                      onValueChange={(value) => actualizarMovimiento(movimiento.id, 'categoria_id', parseInt(value))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Opcional" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categorias.map((categoria) => (
-                          <SelectItem key={categoria.id} value={categoria.id.toString()}>
-                            {categoria.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {movimiento.tipo === 'cortesia' && (
-                  <div>
-                    <Label>Beneficiario</Label>
-                    <Input
-                      value={movimiento.beneficiario || ''}
-                      onChange={(e) => actualizarMovimiento(movimiento.id, 'beneficiario', e.target.value)}
-                      placeholder="¿A quién?"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <Label>Descripción</Label>
-                  <Input
-                    value={movimiento.descripcion || ''}
-                    onChange={(e) => actualizarMovimiento(movimiento.id, 'descripcion', e.target.value)}
-                    placeholder="Detalle"
-                  />
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => eliminarMovimiento(movimiento.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-
-          <div className="p-4 bg-red-100 rounded-lg">
-            <h4 className="font-medium text-red-800">Total Salidas: ${totales.totalSalidas.toFixed(2)}</h4>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const renderResumenFinal = () => (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calculator className="h-5 w-5" />
-            Cálculo del Efectivo Esperado
-          </CardTitle>
-          <CardDescription>Fórmula: (Venta Neta + Cobranza) - (Todas las Salidas)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Fórmula paso a paso */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-lg">Cálculo Paso a Paso</h3>
-
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-medium text-blue-800 mb-2">Base del Cálculo</h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Venta Neta (POS):</span>
-                    <span className="font-medium">${corteData.venta_neta.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>+ Cobranza:</span>
-                    <span className="font-medium">${totales.cobranza.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-1 border-blue-200">
-                    <span className="font-medium">Subtotal:</span>
-                    <span className="font-bold">${(corteData.venta_neta + totales.cobranza).toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-red-50 rounded-lg">
-                <h4 className="font-medium text-red-800 mb-2">Salidas de Efectivo</h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Retiros Parciales:</span>
-                    <span>-${totales.retirosParciales.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Venta Tarjeta:</span>
-                    <span>-${totales.ventaTarjeta.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Venta Transferencia:</span>
-                    <span>-${totales.ventaTransferencia.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Gastos:</span>
-                    <span>-${totales.gastos.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Compras:</span>
-                    <span>-${totales.compras.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Préstamos:</span>
-                    <span>-${totales.prestamos.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Cortesías:</span>
-                    <span>-${totales.cortesias.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Otros Retiros:</span>
-                    <span>-${totales.otrosRetiros.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-1 border-red-200">
-                    <span className="font-medium">Total Salidas:</span>
-                    <span className="font-bold">-${totales.totalSalidas.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium mb-2">Efectivo Esperado</h4>
-                <div className="text-2xl font-bold text-gray-800">
-                  ${totales.efectivoEsperado.toFixed(2)}
-                </div>
-              </div>
-            </div>
-
-            {/* Comparación final */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-lg">Comparación Final</h3>
-
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-medium mb-2">Efectivo Real Entregado</h4>
-                <div>
-                  <Label htmlFor="efectivo_real">Monto entregado por la cajera</Label>
-                  <Input
-                    id="efectivo_real"
-                    type="number"
-                    step="0.01"
-                    value={efectivoReal}
-                    onChange={(e) => setEfectivoReal(parseFloat(e.target.value) || 0)}
-                    className="text-lg font-medium"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              {efectivoReal > 0 && (
-                <div className={`p-4 rounded-lg ${
-                  totales.diferencia >= 0 ? 'bg-green-50' : 'bg-red-50'
-                }`}>
-                  <h4 className={`font-medium mb-2 ${
-                    totales.diferencia >= 0 ? 'text-green-800' : 'text-red-800'
-                  }`}>
-                    {totales.diferencia >= 0 ? 'Sobrante' : 'Faltante'}
-                  </h4>
-                  <div className={`text-2xl font-bold ${
-                    totales.diferencia >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    ${Math.abs(totales.diferencia).toFixed(2)}
-                  </div>
-                  {Math.abs(totales.diferencia) > 50 && (
-                    <p className="text-sm mt-2 text-amber-600">
-                      ⚠️ Diferencia mayor a $50 - Se generará adeudo automáticamente
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div className="mt-6">
-            <Label htmlFor="tags">Tags y Observaciones</Label>
-            <Textarea
-              id="tags"
-              value={corteData.tags}
-              onChange={(e) => setCorteData({...corteData, tags: e.target.value})}
-              placeholder="Ej: turno-matutino, diferencia-menor, revision-pendiente"
-              rows={3}
-            />
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
 
   const onSubmit = async () => {
-    if (!corteData.empresa_id || !corteData.empleado_id) {
-      toast.error('Selecciona empresa y empleado')
+    if (!corteData.empresa_id || !corteData.entidad_id) {
+      toast.error('Selecciona empresa y cajera')
       return
     }
 
@@ -764,33 +117,17 @@ export default function NuevoCorteePage() {
       return
     }
 
-    if (efectivoReal === 0) {
-      toast.error('Ingresa el efectivo real entregado')
-      return
-    }
-
     setIsSubmitting(true)
     try {
-      const corteCompleto = {
-        ...corteData,
-        empresa_id: parseInt(corteData.empresa_id),
-        empleado_id: parseInt(corteData.empleado_id),
-        venta_neta: corteData.venta_neta,
-        efectivo_esperado: totales.efectivoEsperado,
-        efectivo_real: efectivoReal,
-        diferencia: totales.diferencia,
-        movimientos
-      }
-
       const response = await fetch('/api/cortes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(corteCompleto)
+        body: JSON.stringify(corteData)
       })
 
       if (response.ok) {
-        const corte = await response.json()
-        toast.success(`Corte #${corte.corte.id} creado exitosamente`)
+        const result = await response.json()
+        toast.success(`Corte #${result.corte.id} creado exitosamente`)
         router.push('/dashboard/cortes')
       } else {
         const error = await response.json()
@@ -804,13 +141,6 @@ export default function NuevoCorteePage() {
     }
   }
 
-  const steps = [
-    { number: 1, title: "Información General", description: "Datos básicos del corte" },
-    { number: 2, title: "Venta Neta", description: "Total del POS" },
-    { number: 3, title: "Movimientos de Efectivo", description: "Entradas y salidas" },
-    { number: 4, title: "Cálculo Final", description: "Efectivo esperado vs real" }
-  ]
-
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       {/* Header */}
@@ -823,82 +153,492 @@ export default function NuevoCorteePage() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Nuevo Corte de Caja</h1>
-          <p className="text-gray-600 mt-1">Efectivo Esperado = (Venta Neta + Cobranza) - (Retiros + Tarjetas + Gastos + etc.)</p>
+          <p className="text-gray-600 mt-1">Captura manual de totales - Flujo simplificado</p>
         </div>
       </div>
 
-      {/* Progress Steps */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          {steps.map((step, index) => (
-            <div key={step.number} className="flex items-center">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
-                currentStep === step.number
-                  ? 'bg-blue-600 text-white'
-                  : currentStep > step.number
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-200 text-gray-600'
-              }`}>
-                {step.number}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Columna 1: Información General */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Información General</CardTitle>
+              <CardDescription>Datos básicos del corte</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="empresa">Empresa</Label>
+                <Select
+                  value={corteData.empresa_id}
+                  onValueChange={(value) => setCorteData({...corteData, empresa_id: value})}
+                  disabled={loadingData}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingData ? "Cargando..." : "Selecciona empresa"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {empresas.map((empresa) => (
+                      <SelectItem key={empresa.id} value={empresa.id.toString()}>
+                        {empresa.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {index < steps.length - 1 && (
-                <div className={`w-16 h-1 mx-2 ${
-                  currentStep > step.number ? 'bg-green-600' : 'bg-gray-200'
-                }`} />
+
+              <div>
+                <Label htmlFor="entidad">Cajera</Label>
+                <Select
+                  value={corteData.entidad_id}
+                  onValueChange={(value) => setCorteData({...corteData, entidad_id: value})}
+                  disabled={loadingData}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingData ? "Cargando..." : "Selecciona cajera"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {entidades.map((entidad) => (
+                      <SelectItem key={entidad.id} value={entidad.id.toString()}>
+                        {entidad.nombre} {entidad.puesto && `(${entidad.puesto})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="fecha">Fecha</Label>
+                <Input
+                  id="fecha"
+                  type="date"
+                  value={corteData.fecha}
+                  onChange={(e) => setCorteData({...corteData, fecha: e.target.value})}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="sesion">Sesión</Label>
+                <Input
+                  id="sesion"
+                  type="number"
+                  min="1"
+                  value={corteData.sesion}
+                  onChange={(e) => setCorteData({...corteData, sesion: parseInt(e.target.value)})}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Venta Neta del POS */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Venta Neta del POS
+              </CardTitle>
+              <CardDescription>Total reportado por el sistema POS</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div>
+                <Label htmlFor="venta_neta">Venta Neta Total</Label>
+                <Input
+                  id="venta_neta"
+                  type="number"
+                  step="0.01"
+                  value={corteData.venta_neta}
+                  onChange={(e) => handleInputChange('venta_neta', parseFloat(e.target.value) || 0)}
+                  className="text-lg font-medium"
+                />
+              </div>
+
+              {corteData.venta_neta > 0 && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-xl font-bold text-blue-600">
+                    ${corteData.venta_neta.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-blue-700">Base para cálculos</p>
+                </div>
               )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Columna 2: Efectivo Reportado */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-green-600" />
+                Efectivo Reportado por Cajera
+              </CardTitle>
+              <CardDescription>Efectivo físico contado en caja al final del turno</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="venta_efectivo">Efectivo en Caja</Label>
+                <Input
+                  id="venta_efectivo"
+                  type="number"
+                  step="0.01"
+                  value={corteData.venta_efectivo}
+                  onChange={(e) => handleInputChange('venta_efectivo', parseFloat(e.target.value) || 0)}
+                  className="text-lg font-medium"
+                />
+                <p className="text-xs text-blue-600 mt-1">💵 Total contado físicamente por la cajera</p>
+              </div>
+
+              {corteData.venta_efectivo > 0 && (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                  <p className="text-xl font-bold text-green-600">
+                    ${corteData.venta_efectivo.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-green-700">Efectivo reportado</p>
+                </div>
+              )}
+
+              {/* Cálculo indirecto de venta en efectivo */}
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg border">
+                <h4 className="font-medium text-blue-800 mb-2">Venta en Efectivo (Calculada)</h4>
+                <p className="text-lg font-bold text-blue-600">
+                  ${camposCalculados.venta_efectivo_calculada.toFixed(2)}
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  = Efectivo en Caja + Egresos - Cobranza
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  = ${corteData.venta_efectivo.toFixed(2)} + ${camposCalculados.total_egresos.toFixed(2)} - ${corteData.cobranza.toFixed(2)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
+                Formas de Venta (sin efectivo)
+              </CardTitle>
+              <CardDescription>Ventas que NO generan efectivo físico en caja</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+
+              {/* Separador visual para formas sin efectivo */}
+              <div className="border-t pt-3">
+                <h4 className="font-medium text-gray-700 mb-3">Formas sin efectivo físico</h4>
+              </div>
+
+              <div>
+                <Label htmlFor="venta_credito">Venta a Crédito</Label>
+                <Input
+                  id="venta_credito"
+                  type="number"
+                  step="0.01"
+                  value={corteData.venta_credito}
+                  onChange={(e) => handleInputChange('venta_credito', parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-gray-500 mt-1">Ventas a crédito (sin efectivo)</p>
+              </div>
+
+              <div>
+                <Label htmlFor="venta_plataforma">Venta Plataformas</Label>
+                <Input
+                  id="venta_plataforma"
+                  type="number"
+                  step="0.01"
+                  value={corteData.venta_plataforma}
+                  onChange={(e) => handleInputChange('venta_plataforma', parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-gray-500 mt-1">Uber Eats, Rappi, etc. (sin efectivo)</p>
+              </div>
+
+              {/* Tarjetas separadas */}
+              <div className="space-y-3 p-3 border rounded-lg bg-blue-50">
+                <h4 className="font-medium flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Tarjetas (separadas)
+                </h4>
+
+                <div>
+                  <Label htmlFor="venta_credito_tarjeta">Tarjetas de Crédito</Label>
+                  <Input
+                    id="venta_credito_tarjeta"
+                    type="number"
+                    step="0.01"
+                    value={corteData.venta_credito_tarjeta}
+                    onChange={(e) => handleInputChange('venta_credito_tarjeta', parseFloat(e.target.value) || 0)}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Sin efectivo físico</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="venta_debito_tarjeta">Tarjetas de Débito</Label>
+                  <Input
+                    id="venta_debito_tarjeta"
+                    type="number"
+                    step="0.01"
+                    value={corteData.venta_debito_tarjeta}
+                    onChange={(e) => handleInputChange('venta_debito_tarjeta', parseFloat(e.target.value) || 0)}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Sin efectivo físico</p>
+                </div>
+
+                <div className="text-sm text-blue-700 font-medium">
+                  Total Tarjetas: ${camposCalculados.venta_tarjeta.toFixed(2)}
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="venta_transferencia">Transferencias</Label>
+                <Input
+                  id="venta_transferencia"
+                  type="number"
+                  step="0.01"
+                  value={corteData.venta_transferencia}
+                  onChange={(e) => handleInputChange('venta_transferencia', parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-gray-500 mt-1">Sin efectivo físico</p>
+              </div>
+
+              <div>
+                <Label htmlFor="cortesia">Cortesías</Label>
+                <Input
+                  id="cortesia"
+                  type="number"
+                  step="0.01"
+                  value={corteData.cortesia}
+                  onChange={(e) => handleInputChange('cortesia', parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-gray-500 mt-1">Pagadas por la empresa (sin efectivo)</p>
+              </div>
+
+              <div>
+                <Label htmlFor="cobranza">Cobranza</Label>
+                <Input
+                  id="cobranza"
+                  type="number"
+                  step="0.01"
+                  value={corteData.cobranza}
+                  onChange={(e) => handleInputChange('cobranza', parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-green-600 mt-1">✅ Aumenta efectivo físico esperado</p>
+              </div>
+
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <p className="font-medium text-blue-800">
+                  Total Ventas sin Efectivo: ${camposCalculados.total_ingresos.toFixed(2)}
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  Estas ventas no aumentan el efectivo físico de caja
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Columna 3: Egresos Reales */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingDown className="h-5 w-5 text-red-600" />
+                Egresos Reales
+              </CardTitle>
+              <CardDescription>Salidas que REDUCEN efectivo físico de caja</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="retiro_parcial">Retiros Parciales</Label>
+                <Input
+                  id="retiro_parcial"
+                  type="number"
+                  step="0.01"
+                  value={corteData.retiro_parcial}
+                  onChange={(e) => handleInputChange('retiro_parcial', parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-red-600 mt-1">❌ Reduce efectivo físico</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <Label htmlFor="gasto">Gastos</Label>
+                  <Input
+                    id="gasto"
+                    type="number"
+                    step="0.01"
+                    value={corteData.gasto}
+                    onChange={(e) => handleInputChange('gasto', parseFloat(e.target.value) || 0)}
+                  />
+                  <p className="text-xs text-red-600 mt-1">❌ Reduce efectivo físico</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="compra">Compras</Label>
+                  <Input
+                    id="compra"
+                    type="number"
+                    step="0.01"
+                    value={corteData.compra}
+                    onChange={(e) => handleInputChange('compra', parseFloat(e.target.value) || 0)}
+                  />
+                  <p className="text-xs text-red-600 mt-1">❌ Reduce efectivo físico</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="prestamo">Préstamos</Label>
+                  <Input
+                    id="prestamo"
+                    type="number"
+                    step="0.01"
+                    value={corteData.prestamo}
+                    onChange={(e) => handleInputChange('prestamo', parseFloat(e.target.value) || 0)}
+                  />
+                  <p className="text-xs text-red-600 mt-1">❌ Reduce efectivo físico</p>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="otros_retiros">Otros Retiros</Label>
+                <Input
+                  id="otros_retiros"
+                  type="number"
+                  step="0.01"
+                  value={corteData.otros_retiros}
+                  onChange={(e) => handleInputChange('otros_retiros', parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-red-600 mt-1">❌ Reduce efectivo físico</p>
+              </div>
+
+              <div className="p-3 bg-red-50 rounded-lg">
+                <p className="font-medium text-red-800">
+                  Total Egresos Reales: ${camposCalculados.total_egresos.toFixed(2)}
+                </p>
+                <p className="text-xs text-red-700 mt-1">
+                  Solo gastos que retiran efectivo de caja
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Panel de Información y Validación */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Calculator className="h-5 w-5" />
+            Información y Validación del Corte
+          </CardTitle>
+          <CardDescription>Métricas clave para validar la consistencia de los datos capturados</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+            {/* Columna 1: Ventas e Ingresos */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-800 border-b pb-2">Ventas e Ingresos</h3>
+
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <h4 className="font-medium text-blue-800">Venta Total Registrada</h4>
+                <p className="text-2xl font-bold text-blue-600">
+                  ${corteData.venta_neta.toFixed(2)}
+                </p>
+                <p className="text-sm text-blue-700">Desde el POS</p>
+              </div>
+
+              <div className="p-4 bg-teal-50 rounded-lg">
+                <h4 className="font-medium text-teal-800">Ingreso Total Registrado</h4>
+                <p className="text-2xl font-bold text-teal-600">
+                  ${camposCalculados.ingreso_total_registrado.toFixed(2)}
+                </p>
+                <p className="text-sm text-teal-700">Efectivo calculado + Ventas sin efectivo + Cobranza</p>
+              </div>
             </div>
-          ))}
-        </div>
-        <div className="text-center">
-          <h2 className="text-lg font-medium">{steps[currentStep - 1]?.title}</h2>
-          <p className="text-gray-600">{steps[currentStep - 1]?.description}</p>
-        </div>
-      </div>
 
-      {/* Step Content */}
-      <div className="mb-8">
-        {renderStepContent()}
-      </div>
+            {/* Columna 2: Egresos y Efectivo */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-800 border-b pb-2">Egresos y Efectivo</h3>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-          disabled={currentStep === 1}
-        >
-          Anterior
-        </Button>
+              <div className="p-4 bg-red-50 rounded-lg">
+                <h4 className="font-medium text-red-800">Egresos Reales</h4>
+                <p className="text-2xl font-bold text-red-600">
+                  ${camposCalculados.total_egresos.toFixed(2)}
+                </p>
+                <p className="text-sm text-red-700">Gastos que reducen efectivo de caja</p>
+              </div>
 
-        <div className="flex gap-4">
-          {currentStep < steps.length ? (
-            <Button
-              onClick={() => setCurrentStep(Math.min(steps.length, currentStep + 1))}
-              disabled={
-                (currentStep === 1 && (!corteData.empresa_id || !corteData.empleado_id)) ||
-                (currentStep === 2 && corteData.venta_neta === 0)
-              }
-            >
-              Siguiente
-            </Button>
-          ) : (
-            <Button
-              onClick={onSubmit}
-              disabled={isSubmitting || efectivoReal === 0}
-              className="px-8"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                'Guardar Corte Completo'
-              )}
-            </Button>
-          )}
-        </div>
-      </div>
+              <div className="p-4 bg-purple-50 rounded-lg">
+                <h4 className="font-medium text-purple-800">Efectivo en Caja</h4>
+                <p className="text-2xl font-bold text-purple-600">
+                  ${corteData.venta_efectivo.toFixed(2)}
+                </p>
+                <p className="text-sm text-purple-700">Reportado por cajera</p>
+              </div>
+            </div>
+
+            {/* Columna 3: Validación */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-800 border-b pb-2">Validación</h3>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-800">Efectivo Esperado</h4>
+                <p className="text-2xl font-bold text-gray-600">
+                  ${camposCalculados.efectivo_esperado.toFixed(2)}
+                </p>
+                <p className="text-sm text-gray-700">Según cálculos del sistema</p>
+              </div>
+
+              <div className={`p-4 rounded-lg ${
+                camposCalculados.diferencia >= 0 ? 'bg-green-50' : 'bg-amber-50'
+              }`}>
+                <h4 className={`font-medium ${
+                  camposCalculados.diferencia >= 0 ? 'text-green-800' : 'text-amber-800'
+                }`}>
+                  Diferencia
+                </h4>
+                <p className={`text-2xl font-bold ${
+                  camposCalculados.diferencia >= 0 ? 'text-green-600' : 'text-amber-600'
+                }`}>
+                  ${camposCalculados.diferencia.toFixed(2)}
+                </p>
+                <p className={`text-sm ${
+                  camposCalculados.diferencia >= 0 ? 'text-green-700' : 'text-amber-700'
+                }`}>
+                  {camposCalculados.diferencia >= 0 ? 'Sobrante' : 'Faltante'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Fórmulas de referencia */}
+          <div className="mt-6 p-4 bg-slate-50 rounded-lg border">
+            <h4 className="font-medium text-slate-800 mb-2">Fórmulas de Cálculo:</h4>
+            <div className="text-sm text-slate-600 space-y-1">
+              <p><strong>Efectivo Esperado:</strong> Venta Neta - (Ventas sin efectivo) - (Egresos reales) + Cobranza</p>
+              <p><strong>Diferencia:</strong> Efectivo en Caja - Efectivo Esperado</p>
+              <p><strong>Ingreso Total:</strong> Venta en Efectivo + Ventas sin Efectivo + Cobranza</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                onClick={onSubmit}
+                disabled={isSubmitting || !corteData.empresa_id || !corteData.entidad_id || corteData.venta_neta === 0}
+                className="px-8"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  'Guardar Corte'
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
