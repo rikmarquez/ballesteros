@@ -17,7 +17,7 @@ import Link from 'next/link'
 
 interface MovimientoEfectivo {
   id: string
-  tipo: 'venta_efectivo' | 'cobranza' | 'retiro_parcial' | 'venta_tarjeta' | 'venta_transferencia' | 'gasto' | 'compra' | 'prestamo' | 'cortesia' | 'otros_retiros'
+  tipo: 'venta_efectivo' | 'venta_tarjeta' | 'venta_credito' | 'venta_transferencia' | 'cortesia' | 'cobranza' | 'retiro_parcial' | 'gasto' | 'compra' | 'prestamo' | 'otros_retiros'
   monto: number
   descripcion?: string
   cliente_id?: number | null
@@ -49,58 +49,87 @@ interface CorteData {
   }
 }
 
-// Categorías organizadas por tabs
+// Categorías organizadas por tabs - NUEVA ESTRUCTURA SEPARADA POR TIPO DE VENTA
 const categoriasMovimientos = {
-  ventas: {
-    label: 'Ventas',
+  venta_efectivo: {
+    label: 'Efectivo',
+    icon: Banknote,
+    tipos: ['venta_efectivo'],
+    color: 'bg-green-500',
+    generaEfectivo: true
+  },
+  venta_tarjeta: {
+    label: 'Tarjeta',
     icon: CreditCard,
-    tipos: ['venta_efectivo', 'venta_tarjeta', 'venta_transferencia'],
-    color: 'bg-green-500'
+    tipos: ['venta_tarjeta'],
+    color: 'bg-blue-500',
+    generaEfectivo: false
   },
-  cobranza: {
-    label: 'Cobranza',
+  venta_credito: {
+    label: 'Crédito',
+    icon: ShoppingCart,
+    tipos: ['venta_credito'],
+    color: 'bg-orange-500',
+    generaEfectivo: false
+  },
+  venta_transferencia: {
+    label: 'Transferencia',
     icon: TrendingUp,
-    tipos: ['cobranza'],
-    color: 'bg-blue-500'
+    tipos: ['venta_transferencia'],
+    color: 'bg-indigo-500',
+    generaEfectivo: false
   },
-  cortesias: {
+  cortesia: {
     label: 'Cortesías',
     icon: Gift,
     tipos: ['cortesia'],
-    color: 'bg-purple-500'
+    color: 'bg-pink-500',
+    generaEfectivo: false
+  },
+  cobranza: {
+    label: 'Cobranza',
+    icon: Calculator,
+    tipos: ['cobranza'],
+    color: 'bg-emerald-500',
+    generaEfectivo: true
   },
   retiros: {
     label: 'Retiros',
     icon: Banknote,
     tipos: ['retiro_parcial', 'otros_retiros'],
-    color: 'bg-orange-500'
+    color: 'bg-amber-500',
+    generaEfectivo: false
   },
   gastos: {
     label: 'Gastos',
     icon: Wrench,
     tipos: ['gasto'],
-    color: 'bg-red-500'
+    color: 'bg-red-500',
+    generaEfectivo: false
   },
   compras: {
     label: 'Compras',
     icon: ShoppingCart,
     tipos: ['compra'],
-    color: 'bg-yellow-500'
+    color: 'bg-yellow-500',
+    generaEfectivo: false
   },
   prestamos: {
     label: 'Préstamos',
     icon: Users,
     tipos: ['prestamo'],
-    color: 'bg-indigo-500'
+    color: 'bg-purple-500',
+    generaEfectivo: false
   }
 }
 
 const tiposMovimiento = [
-  { value: 'venta_efectivo', label: 'Venta en Efectivo', categoria: 'ventas' },
-  { value: 'venta_tarjeta', label: 'Venta con Tarjeta', categoria: 'ventas' },
-  { value: 'venta_transferencia', label: 'Venta por Transferencia', categoria: 'ventas' },
+  { value: 'venta_efectivo', label: 'Venta en Efectivo', categoria: 'venta_efectivo' },
+  { value: 'venta_tarjeta', label: 'Venta con Tarjeta', categoria: 'venta_tarjeta' },
+  { value: 'venta_credito', label: 'Venta a Crédito', categoria: 'venta_credito' },
+  { value: 'venta_transferencia', label: 'Venta por Transferencia', categoria: 'venta_transferencia' },
+  { value: 'cortesia', label: 'Cortesía', categoria: 'cortesia' },
   { value: 'cobranza', label: 'Cobranza', categoria: 'cobranza' },
-  { value: 'cortesia', label: 'Cortesía', categoria: 'cortesias' },
   { value: 'retiro_parcial', label: 'Retiro Parcial', categoria: 'retiros' },
   { value: 'otros_retiros', label: 'Otros Retiros', categoria: 'retiros' },
   { value: 'gasto', label: 'Gasto', categoria: 'gastos' },
@@ -117,7 +146,7 @@ export default function EditarCortePage() {
   const [saving, setSaving] = useState(false)
   const [corteData, setCorteData] = useState<CorteData | null>(null)
   const [movimientos, setMovimientos] = useState<MovimientoEfectivo[]>([])
-  const [activeTab, setActiveTab] = useState('ventas')
+  const [activeTab, setActiveTab] = useState('venta_efectivo')
   const [clientes, setClientes] = useState<any[]>([])
   const [categorias, setCategorias] = useState<any[]>([])
   const [empleados, setEmpleados] = useState<any[]>([])
@@ -202,19 +231,38 @@ export default function EditarCortePage() {
   }
 
   const calcularTotales = () => {
+    // Separar tipos de venta
+    const ventaEfectivo = getTotalPorCategoria('venta_efectivo')
+    const ventaTarjeta = getTotalPorCategoria('venta_tarjeta')
+    const ventaCredito = getTotalPorCategoria('venta_credito')
+    const ventaTransferencia = getTotalPorCategoria('venta_transferencia')
+    const cortesias = getTotalPorCategoria('cortesia')
+
+
+    // Ingresos que generan efectivo
     const totalCobranza = getTotalPorCategoria('cobranza')
+
+    // Egresos que reducen efectivo
     const totalEgresos = getTotalPorCategoria('retiros') +
                         getTotalPorCategoria('gastos') +
                         getTotalPorCategoria('compras') +
-                        getTotalPorCategoria('prestamos') +
-                        getTotalPorCategoria('cortesias') +
-                        getTotalPorCategoria('ventas') - getTotalPorCategoria('ventas') // Solo tarjeta y transferencia
+                        getTotalPorCategoria('prestamos')
 
-    const efectivoEsperado = (corteData?.venta_neta || 0) + totalCobranza - totalEgresos
+    // Ventas que NO generan efectivo (se descuentan de la venta neta)
+    const ventasNoEfectivo = ventaTarjeta + ventaCredito + ventaTransferencia + cortesias
+
+    // FÓRMULA CORRECTA: Venta Neta - (Tarjeta + Crédito + Transferencia + Cortesías) + Cobranza - Egresos
+    const efectivoEsperado = (corteData?.venta_neta || 0) - ventasNoEfectivo + totalCobranza - totalEgresos
 
     return {
+      ventaEfectivo,
+      ventaTarjeta,
+      ventaCredito,
+      ventaTransferencia,
+      cortesias,
       totalCobranza,
       totalEgresos,
+      ventasNoEfectivo,
       efectivoEsperado
     }
   }
@@ -224,29 +272,43 @@ export default function EditarCortePage() {
 
     setSaving(true)
     try {
+      const requestData = {
+        venta_neta: corteData.venta_neta,
+        tags: corteData.tags,
+        movimientos: movimientos.map(m => ({
+          ...m,
+          monto: Number(m.monto)
+        }))
+      }
+
+      console.log('Enviando datos al backend:', requestData)
+
       const response = await fetch(`/api/cortes?id=${corteId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          venta_neta: corteData.venta_neta,
-          efectivo_real: corteData.efectivo_real,
-          tags: corteData.tags,
-          movimientos: movimientos.map(m => ({
-            ...m,
-            monto: Number(m.monto)
-          }))
-        })
+        body: JSON.stringify(requestData)
       })
 
       if (!response.ok) {
-        throw new Error('Error al actualizar el corte')
+        let errorMessage = 'Error al actualizar el corte'
+        try {
+          const errorData = await response.text()
+          console.error('Error response:', response.status, errorData)
+          if (errorData) {
+            const parsed = JSON.parse(errorData)
+            errorMessage = parsed.error || errorMessage
+          }
+        } catch (parseError) {
+          console.error('Could not parse error response:', parseError)
+        }
+        throw new Error(errorMessage)
       }
 
       toast.success('Corte actualizado exitosamente')
       router.push('/dashboard/cortes')
     } catch (error) {
       console.error('Error:', error)
-      toast.error('Error al guardar los cambios')
+      toast.error(`Error al guardar los cambios: ${error.message}`)
     } finally {
       setSaving(false)
     }
@@ -260,61 +322,46 @@ export default function EditarCortePage() {
   }
 
   const renderMovimiento = (movimiento: MovimientoEfectivo) => {
-    const requiereCliente = ['venta_efectivo', 'venta_tarjeta', 'venta_transferencia', 'cobranza'].includes(movimiento.tipo)
+    const requiereCliente = ['venta_efectivo', 'venta_tarjeta', 'venta_credito', 'venta_transferencia', 'cobranza'].includes(movimiento.tipo)
     const requiereCategoria = ['gasto', 'compra'].includes(movimiento.tipo)
     const requiereEmpleado = ['prestamo'].includes(movimiento.tipo)
     const requiereBeneficiario = ['cortesia'].includes(movimiento.tipo)
 
     return (
-      <div key={movimiento.id} className="border rounded-lg p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <Badge variant="outline">
-            {tiposMovimiento.find(t => t.value === movimiento.tipo)?.label}
-          </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => eliminarMovimiento(movimiento.id)}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
+      <div key={movimiento.id} className="bg-white border rounded-lg p-3 hover:bg-gray-50 transition-colors">
+        {/* Campos principales en una línea horizontal */}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <Label>Monto</Label>
+        <div className="grid grid-cols-12 gap-2 items-center">
+          <div className="col-span-2">
             <Input
               type="number"
               step="0.01"
               value={movimiento.monto}
               onChange={(e) => actualizarMovimiento(movimiento.id, 'monto', parseFloat(e.target.value) || 0)}
+              className="text-sm font-medium"
+              placeholder="0.00"
             />
           </div>
 
-          <div>
-            <Label>Descripción</Label>
+          <div className="col-span-3">
             <Input
               value={movimiento.descripcion || ''}
               onChange={(e) => actualizarMovimiento(movimiento.id, 'descripcion', e.target.value)}
-              placeholder="Descripción del movimiento"
+              placeholder="Descripción"
+              className="text-sm"
             />
           </div>
-        </div>
-
-        {/* Campos específicos por tipo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {requiereCliente && (
-            <div>
-              <Label>Cliente</Label>
+            <div className="col-span-3">
               <Select
-                value={movimiento.cliente_id?.toString() || ''}
-                onValueChange={(value) => actualizarMovimiento(movimiento.id, 'cliente_id', value ? parseInt(value) : null)}
+                value={movimiento.cliente_id?.toString() || '0'}
+                onValueChange={(value) => actualizarMovimiento(movimiento.id, 'cliente_id', value && value !== "0" ? parseInt(value) : null)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona cliente" />
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin cliente</SelectItem>
+                  <SelectItem value="0">Sin cliente</SelectItem>
                   {clientes.map((cliente) => (
                     <SelectItem key={cliente.id} value={cliente.id.toString()}>
                       {cliente.nombre}
@@ -326,16 +373,16 @@ export default function EditarCortePage() {
           )}
 
           {requiereCategoria && (
-            <div>
-              <Label>Categoría</Label>
+            <div className="col-span-2">
               <Select
-                value={movimiento.categoria_id?.toString() || ''}
-                onValueChange={(value) => actualizarMovimiento(movimiento.id, 'categoria_id', value ? parseInt(value) : null)}
+                value={movimiento.categoria_id?.toString() || '0'}
+                onValueChange={(value) => actualizarMovimiento(movimiento.id, 'categoria_id', value && value !== "0" ? parseInt(value) : null)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona categoría" />
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Categoría" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="0">Sin categoría</SelectItem>
                   {categorias.map((categoria) => (
                     <SelectItem key={categoria.id} value={categoria.id.toString()}>
                       {categoria.nombre}
@@ -347,19 +394,19 @@ export default function EditarCortePage() {
           )}
 
           {requiereEmpleado && (
-            <div>
-              <Label>Empleado</Label>
+            <div className="col-span-3">
               <Select
-                value={movimiento.empleado_id?.toString() || ''}
-                onValueChange={(value) => actualizarMovimiento(movimiento.id, 'empleado_id', value ? parseInt(value) : null)}
+                value={movimiento.empleado_id?.toString() || '0'}
+                onValueChange={(value) => actualizarMovimiento(movimiento.id, 'empleado_id', value && value !== "0" ? parseInt(value) : null)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona empleado" />
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Empleado" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="0">Sin empleado</SelectItem>
                   {empleados.map((empleado) => (
                     <SelectItem key={empleado.id} value={empleado.id.toString()}>
-                      {empleado.nombre} - {empleado.puesto}
+                      {empleado.nombre}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -368,15 +415,37 @@ export default function EditarCortePage() {
           )}
 
           {requiereBeneficiario && (
-            <div>
-              <Label>Beneficiario</Label>
+            <div className="col-span-3">
               <Input
                 value={movimiento.beneficiario || ''}
                 onChange={(e) => actualizarMovimiento(movimiento.id, 'beneficiario', e.target.value)}
-                placeholder="Nombre del beneficiario"
+                placeholder="Beneficiario"
+                className="text-sm"
               />
             </div>
           )}
+
+          {/* Botones de acción */}
+          <div className="col-span-2 flex gap-1 justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                toast.success('Movimiento actualizado')
+              }}
+              className="text-green-600 hover:text-green-700 hover:bg-green-50 h-8 w-8 p-0"
+            >
+              <Save className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => eliminarMovimiento(movimiento.id)}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -402,8 +471,21 @@ export default function EditarCortePage() {
     )
   }
 
-  const { totalCobranza, totalEgresos, efectivoEsperado } = calcularTotales()
-  const diferencia = corteData.efectivo_real - efectivoEsperado
+  const {
+    ventaEfectivo,
+    ventaTarjeta,
+    ventaCredito,
+    ventaTransferencia,
+    cortesias,
+    totalCobranza,
+    totalEgresos,
+    ventasNoEfectivo,
+    efectivoEsperado
+  } = calcularTotales()
+
+  // El efectivo real es igual a la venta en efectivo + cobranza
+  const efectivoReal = ventaEfectivo + totalCobranza
+  const diferencia = efectivoReal - efectivoEsperado
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -430,58 +512,8 @@ export default function EditarCortePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Información General y Movimientos */}
+        {/* Movimientos */}
         <div className="lg:col-span-3 space-y-6">
-          {/* Información General */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Información General</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="venta_neta">Venta Neta</Label>
-                  <Input
-                    id="venta_neta"
-                    type="number"
-                    step="0.01"
-                    value={corteData.venta_neta}
-                    onChange={(e) => setCorteData({
-                      ...corteData,
-                      venta_neta: parseFloat(e.target.value) || 0
-                    })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="efectivo_real">Efectivo Real</Label>
-                  <Input
-                    id="efectivo_real"
-                    type="number"
-                    step="0.01"
-                    value={corteData.efectivo_real}
-                    onChange={(e) => setCorteData({
-                      ...corteData,
-                      efectivo_real: parseFloat(e.target.value) || 0
-                    })}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="tags">Notas</Label>
-                <Textarea
-                  id="tags"
-                  value={corteData.tags || ''}
-                  onChange={(e) => setCorteData({
-                    ...corteData,
-                    tags: e.target.value
-                  })}
-                  placeholder="Notas adicionales..."
-                />
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Movimientos por Categoría */}
           <Card>
             <CardHeader>
@@ -492,7 +524,7 @@ export default function EditarCortePage() {
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-7">
+                <TabsList className="grid w-full grid-cols-10">
                   {Object.entries(categoriasMovimientos).map(([key, categoria]) => {
                     const Icon = categoria.icon
                     const total = getTotalPorCategoria(key)
@@ -518,30 +550,33 @@ export default function EditarCortePage() {
                   const total = getTotalPorCategoria(key)
 
                   return (
-                    <TabsContent key={key} value={key} className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Icon className="w-5 h-5" />
+                    <TabsContent key={key} value={key} className="space-y-4 pt-10">
+                      {/* Título de la categoría con botón agregar */}
+                      <div className="flex items-center justify-between border-b pb-4 mb-8">
+                        <div className="flex items-center gap-3">
+                          <Icon className={`w-5 h-5 text-white p-1 rounded ${categoria.color}`} />
                           <h3 className="text-lg font-semibold">{categoria.label}</h3>
                           <Badge variant="secondary">
-                            Total: {formatearMoneda(total)}
+                            {movimientosCategoria.length} movimientos - Total: {formatearMoneda(total)}
                           </Badge>
                         </div>
                         <Button
                           onClick={() => agregarMovimiento(key)}
                           size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           <Plus className="w-4 h-4 mr-2" />
                           Agregar
                         </Button>
                       </div>
 
-                      <div className="space-y-4">
+                      {/* Lista de movimientos */}
+                      <div className="space-y-2">
                         {movimientosCategoria.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
+                          <div className="text-center py-8 text-muted-foreground bg-gray-50 rounded-lg">
                             <Icon className="w-12 h-12 mx-auto mb-2 opacity-50" />
                             <p>No hay movimientos de {categoria.label.toLowerCase()}</p>
-                            <p className="text-sm">Agrega el primer movimiento</p>
+                            <p className="text-sm">Haz clic en \"Agregar\" para crear el primer movimiento</p>
                           </div>
                         ) : (
                           movimientosCategoria.map(renderMovimiento)
@@ -565,11 +600,28 @@ export default function EditarCortePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Venta Neta:</span>
-                  <span className="font-medium">{formatearMoneda(corteData.venta_neta)}</span>
+              {/* Captura de Venta Neta */}
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="venta_neta" className="text-sm font-medium">Venta Neta (POS)</Label>
+                  <Input
+                    id="venta_neta"
+                    type="number"
+                    step="0.01"
+                    value={corteData.venta_neta}
+                    onChange={(e) => setCorteData({
+                      ...corteData,
+                      venta_neta: parseFloat(e.target.value) || 0
+                    })}
+                    className="mt-1 text-lg font-semibold"
+                    placeholder="0.00"
+                  />
                 </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              <div className="space-y-2">
 
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">+ Cobranza:</span>
@@ -579,11 +631,15 @@ export default function EditarCortePage() {
                 <div className="space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">- Tarjetas:</span>
-                    <span>{formatearMoneda(movimientos.filter(m => m.tipo === 'venta_tarjeta').reduce((s, m) => s + m.monto, 0))}</span>
+                    <span>{formatearMoneda(ventaTarjeta)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">- Crédito:</span>
+                    <span>{formatearMoneda(ventaCredito)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">- Transferencias:</span>
-                    <span>{formatearMoneda(movimientos.filter(m => m.tipo === 'venta_transferencia').reduce((s, m) => s + m.monto, 0))}</span>
+                    <span>{formatearMoneda(ventaTransferencia)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">- Retiros:</span>
@@ -616,7 +672,7 @@ export default function EditarCortePage() {
 
                 <div className="flex justify-between">
                   <span className="font-medium">Efectivo Real:</span>
-                  <span className="font-bold">{formatearMoneda(corteData.efectivo_real)}</span>
+                  <span className="font-bold text-green-600">{formatearMoneda(efectivoReal)}</span>
                 </div>
 
                 <Separator />
@@ -643,33 +699,101 @@ export default function EditarCortePage() {
             </CardContent>
           </Card>
 
-          {/* Totales por Categoría */}
+          {/* Totales por Tipo de Venta */}
           <Card>
             <CardHeader>
-              <CardTitle>Totales por Categoría</CardTitle>
+              <CardTitle>Resumen de Ventas</CardTitle>
+              <CardDescription>Desglose por forma de pago</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {Object.entries(categoriasMovimientos).map(([key, categoria]) => {
-                  const Icon = categoria.icon
-                  const total = getTotalPorCategoria(key)
-                  const cantidad = getMovimientosPorCategoria(key).length
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded bg-green-100 border border-green-200">
+                  <div className="flex items-center gap-2">
+                    <Banknote className="w-5 h-5 text-green-700" />
+                    <span className="font-medium text-green-800">Efectivo Real</span>
+                  </div>
+                  <span className="text-lg font-bold text-green-700">
+                    {formatearMoneda(efectivoReal)}
+                  </span>
+                </div>
 
-                  return (
-                    <div key={key} className="flex items-center justify-between p-2 rounded hover:bg-muted/50">
-                      <div className="flex items-center gap-2">
-                        <Icon className="w-4 h-4" />
-                        <span className="text-sm">{categoria.label}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {cantidad}
-                        </Badge>
-                      </div>
-                      <span className="text-sm font-medium">
-                        {formatearMoneda(total)}
-                      </span>
-                    </div>
-                  )
-                })}
+                <div className="text-xs text-muted-foreground px-2">
+                  Venta Efectivo: {formatearMoneda(ventaEfectivo)} + Cobranza: {formatearMoneda(totalCobranza)}
+                </div>
+
+                <Separator className="my-2" />
+
+                <div className="flex items-center justify-between p-2 rounded bg-green-50">
+                  <div className="flex items-center gap-2">
+                    <Banknote className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-medium">Venta Efectivo</span>
+                  </div>
+                  <span className="text-sm font-bold text-green-600">
+                    {formatearMoneda(ventaEfectivo)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded bg-blue-50">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium">Tarjeta</span>
+                  </div>
+                  <span className="text-sm font-bold text-blue-600">
+                    {formatearMoneda(ventaTarjeta)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded bg-orange-50">
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4 text-orange-600" />
+                    <span className="text-sm font-medium">Crédito</span>
+                  </div>
+                  <span className="text-sm font-bold text-orange-600">
+                    {formatearMoneda(ventaCredito)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded bg-indigo-50">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-indigo-600" />
+                    <span className="text-sm font-medium">Transferencia</span>
+                  </div>
+                  <span className="text-sm font-bold text-indigo-600">
+                    {formatearMoneda(ventaTransferencia)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded bg-pink-50">
+                  <div className="flex items-center gap-2">
+                    <Gift className="w-4 h-4 text-pink-600" />
+                    <span className="text-sm font-medium">Cortesías</span>
+                  </div>
+                  <span className="text-sm font-bold text-pink-600">
+                    {formatearMoneda(cortesias)}
+                  </span>
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between p-2 rounded bg-emerald-50">
+                  <div className="flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-emerald-600" />
+                    <span className="text-sm font-medium">Cobranza</span>
+                  </div>
+                  <span className="text-sm font-bold text-emerald-600">
+                    {formatearMoneda(totalCobranza)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded bg-red-50">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-red-600" />
+                    <span className="text-sm font-medium">Egresos</span>
+                  </div>
+                  <span className="text-sm font-bold text-red-600">
+                    {formatearMoneda(totalEgresos)}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>

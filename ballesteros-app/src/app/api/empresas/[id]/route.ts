@@ -12,7 +12,7 @@ const updateEmpresaSchema = z.object({
 // GET /api/empresas/[id] - Obtener empresa por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -20,7 +20,8 @@ export async function GET(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const empresaId = parseInt(params.id)
+    const { id } = await params
+    const empresaId = parseInt(id)
     if (isNaN(empresaId)) {
       return NextResponse.json(
         { error: 'ID de empresa inválido' },
@@ -61,7 +62,7 @@ export async function GET(
 // PUT /api/empresas/[id] - Actualizar empresa
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -69,7 +70,8 @@ export async function PUT(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const empresaId = parseInt(params.id)
+    const { id } = await params
+    const empresaId = parseInt(id)
     if (isNaN(empresaId)) {
       return NextResponse.json(
         { error: 'ID de empresa inválido' },
@@ -134,7 +136,7 @@ export async function PUT(
 // DELETE /api/empresas/[id] - Desactivar empresa (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -142,7 +144,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const empresaId = parseInt(params.id)
+    const { id } = await params
+    const empresaId = parseInt(id)
     if (isNaN(empresaId)) {
       return NextResponse.json(
         { error: 'ID de empresa inválido' },

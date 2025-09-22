@@ -15,7 +15,7 @@ const updateEmpleadoSchema = z.object({
 // GET /api/empleados/[id] - Obtener empleado por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -23,7 +23,8 @@ export async function GET(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const empleadoId = parseInt(params.id)
+    const { id } = await params
+    const empleadoId = parseInt(id)
     if (isNaN(empleadoId)) {
       return NextResponse.json(
         { error: 'ID de empleado inválido' },
@@ -85,7 +86,7 @@ export async function GET(
 // PUT /api/empleados/[id] - Actualizar empleado
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -93,7 +94,8 @@ export async function PUT(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const empleadoId = parseInt(params.id)
+    const { id } = await params
+    const empleadoId = parseInt(id)
     if (isNaN(empleadoId)) {
       return NextResponse.json(
         { error: 'ID de empleado inválido' },
@@ -158,7 +160,7 @@ export async function PUT(
 // DELETE /api/empleados/[id] - Desactivar empleado (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -166,7 +168,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const empleadoId = parseInt(params.id)
+    const { id } = await params
+    const empleadoId = parseInt(id)
     if (isNaN(empleadoId)) {
       return NextResponse.json(
         { error: 'ID de empleado inválido' },

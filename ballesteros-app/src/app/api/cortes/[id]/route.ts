@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth"
 // GET /api/cortes/[id] - Obtener corte por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
 
-    const corteId = parseInt(params.id)
+    const { id } = await params
+    const corteId = parseInt(id)
     if (isNaN(corteId)) {
       return NextResponse.json(
         { error: "ID de corte inválido" },

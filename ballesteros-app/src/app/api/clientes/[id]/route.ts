@@ -14,7 +14,7 @@ const updateClienteSchema = z.object({
 // GET /api/clientes/[id] - Obtener cliente por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -22,7 +22,8 @@ export async function GET(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const clienteId = parseInt(params.id)
+    const { id } = await params
+    const clienteId = parseInt(id)
     if (isNaN(clienteId)) {
       return NextResponse.json(
         { error: 'ID de cliente inválido' },
@@ -111,7 +112,7 @@ export async function GET(
 // PUT /api/clientes/[id] - Actualizar cliente
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -119,7 +120,8 @@ export async function PUT(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const clienteId = parseInt(params.id)
+    const { id } = await params
+    const clienteId = parseInt(id)
     if (isNaN(clienteId)) {
       return NextResponse.json(
         { error: 'ID de cliente inválido' },
@@ -210,7 +212,7 @@ export async function PUT(
 // DELETE /api/clientes/[id] - Eliminar cliente (solo si no tiene movimientos)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -218,7 +220,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const clienteId = parseInt(params.id)
+    const { id } = await params
+    const clienteId = parseInt(id)
     if (isNaN(clienteId)) {
       return NextResponse.json(
         { error: 'ID de cliente inválido' },

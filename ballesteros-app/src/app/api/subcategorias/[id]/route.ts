@@ -12,7 +12,7 @@ const updateSubcategoriaSchema = z.object({
 // GET /api/subcategorias/[id] - Obtener subcategoría por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -20,7 +20,8 @@ export async function GET(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const subcategoriaId = parseInt(params.id)
+    const { id } = await params
+    const subcategoriaId = parseInt(id)
     if (isNaN(subcategoriaId)) {
       return NextResponse.json(
         { error: 'ID de subcategoría inválido' },
@@ -68,7 +69,7 @@ export async function GET(
 // PUT /api/subcategorias/[id] - Actualizar subcategoría
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -76,7 +77,8 @@ export async function PUT(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const subcategoriaId = parseInt(params.id)
+    const { id } = await params
+    const subcategoriaId = parseInt(id)
     if (isNaN(subcategoriaId)) {
       return NextResponse.json(
         { error: 'ID de subcategoría inválido' },
@@ -168,7 +170,7 @@ export async function PUT(
 // DELETE /api/subcategorias/[id] - Eliminar subcategoría
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -176,7 +178,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const subcategoriaId = parseInt(params.id)
+    const { id } = await params
+    const subcategoriaId = parseInt(id)
     if (isNaN(subcategoriaId)) {
       return NextResponse.json(
         { error: 'ID de subcategoría inválido' },

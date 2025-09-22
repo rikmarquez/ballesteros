@@ -6,7 +6,14 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(npx tsc:*)",
+      "Bash(kill:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(curl:*)",
+      "Bash(start http://localhost:3003/dashboard/cortes/2/editar)"
     ],
     "deny": [],
     "ask": []

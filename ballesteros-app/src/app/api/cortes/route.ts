@@ -6,21 +6,20 @@ import { z } from 'zod'
 // Esquema de validación para actualizar corte
 const updateCorteSchema = z.object({
   venta_neta: z.number().positive().optional(),
-  efectivo_real: z.number().min(0).optional(),
   tags: z.string().optional(),
   movimientos: z.array(z.object({
     id: z.string(),
     tipo: z.enum([
-      'venta_efectivo', 'cobranza', 'retiro_parcial', 'venta_tarjeta',
-      'venta_transferencia', 'gasto', 'compra', 'prestamo', 'cortesia', 'otros_retiros'
+      'venta_efectivo', 'venta_tarjeta', 'venta_credito', 'venta_transferencia',
+      'cortesia', 'cobranza', 'retiro_parcial', 'gasto', 'compra', 'prestamo', 'otros_retiros'
     ]),
     monto: z.number().positive(),
     descripcion: z.string().optional(),
-    cliente_id: z.number().optional(),
-    categoria_id: z.number().optional(),
-    subcategoria_id: z.number().optional(),
-    relacionado_id: z.number().optional(),
-    empleado_id: z.number().optional(),
+    cliente_id: z.number().nullable().optional(),
+    categoria_id: z.number().nullable().optional(),
+    subcategoria_id: z.number().nullable().optional(),
+    relacionado_id: z.number().nullable().optional(),
+    empleado_id: z.number().nullable().optional(),
     beneficiario: z.string().optional()
   })).optional()
 })
@@ -253,6 +252,18 @@ export async function POST(request: NextRequest) {
               })
               break
 
+            case 'venta_credito':
+              await tx.ventaCorte.create({
+                data: {
+                  corte_id: nuevoCorte.id,
+                  forma_pago: 'credito',
+                  monto: monto,
+                  cliente_id: movimiento.cliente_id || null,
+                  tags: movimiento.descripcion || 'Venta a crédito'
+                }
+              })
+              break
+
             case 'gasto':
             case 'compra':
               await tx.egresoTurno.create({
@@ -382,7 +393,19 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const validatedData = updateCorteSchema.parse(body)
+    console.log('Datos recibidos en PUT /api/cortes:', JSON.stringify(body, null, 2))
+
+    let validatedData
+    try {
+      validatedData = updateCorteSchema.parse(body)
+      console.log('Datos validados exitosamente:', JSON.stringify(validatedData, null, 2))
+    } catch (validationError) {
+      console.error('Error de validación Zod:', validationError)
+      return NextResponse.json(
+        { error: 'Datos inválidos', details: validationError.errors || validationError.message },
+        { status: 400 }
+      )
+    }
 
     // Verificar que el corte existe
     const corteExistente = await prisma.corteCaja.findUnique({
@@ -449,6 +472,18 @@ export async function PUT(request: NextRequest) {
                   monto: monto,
                   cliente_id: movimiento.cliente_id || null,
                   tags: movimiento.descripcion || 'Venta con tarjeta'
+                }
+              })
+              break
+
+            case 'venta_credito':
+              await tx.ventaCorte.create({
+                data: {
+                  corte_id: parseInt(corteId),
+                  forma_pago: 'credito',
+                  monto: monto,
+                  cliente_id: movimiento.cliente_id || null,
+                  tags: movimiento.descripcion || 'Venta a crédito'
                 }
               })
               break
@@ -535,7 +570,12 @@ export async function PUT(request: NextRequest) {
           .reduce((sum, m) => sum + m.monto, 0)
 
         const efectivoEsperadoNum = ventaNetaNum + totalCobranza - totalEgresos
-        const efectivoRealNum = validatedData.efectivo_real !== undefined ? validatedData.efectivo_real : corteExistente.efectivo_real
+
+        // Calcular efectivo real: venta en efectivo + cobranza
+        const ventaEfectivo = ingresos
+          .filter(m => m.tipo === 'venta_efectivo')
+          .reduce((sum, m) => sum + m.monto, 0)
+        const efectivoRealNum = ventaEfectivo + totalCobranza
         const diferenciaNum = efectivoRealNum - efectivoEsperadoNum
 
         // Actualizar el corte principal
@@ -547,8 +587,7 @@ export async function PUT(request: NextRequest) {
             efectivo_real: efectivoRealNum,
             diferencia: diferenciaNum,
             tags: validatedData.tags !== undefined ? validatedData.tags : corteExistente.tags,
-            adeudo_generado: diferenciaNum < -50, // Tolerancia de $50
-            updated_at: new Date()
+            adeudo_generado: diferenciaNum < -50 // Tolerancia de $50
           }
         })
 
@@ -561,9 +600,7 @@ export async function PUT(request: NextRequest) {
           updateData.venta_neta = validatedData.venta_neta
         }
 
-        if (validatedData.efectivo_real !== undefined) {
-          updateData.efectivo_real = validatedData.efectivo_real
-        }
+        // El efectivo_real ya no se actualiza manualmente, se calcula automáticamente
 
         if (validatedData.tags !== undefined) {
           updateData.tags = validatedData.tags
