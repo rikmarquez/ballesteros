@@ -5,9 +5,9 @@ import { z } from 'zod'
 
 // Esquema de validación para crear proveedor
 const createProveedorSchema = z.object({
-  empresa_id: z.number().int().positive(),
   nombre: z.string().min(1).max(255),
-  telefono: z.string().max(20).optional()
+  telefono: z.string().max(20).optional().nullable(),
+  activo: z.boolean().optional().default(true)
 })
 
 // GET /api/proveedores - Listar proveedores (usando tabla entidades)
@@ -19,12 +19,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const empresa_id = searchParams.get('empresa_id')
+    const activo = searchParams.get('activo')
     const search = searchParams.get('search')
 
     const where: any = {
       es_proveedor: true // Solo entidades que son proveedores
     }
+
+    if (activo !== null) where.activo = activo === 'true'
 
     if (search) {
       where.OR = [
@@ -33,16 +35,11 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    // Construir query con filtro de empresa si se especifica
-    let proveedoresQuery: any = {
+    const proveedores = await prisma.entidad.findMany({
       where,
+      orderBy: { nombre: 'asc' },
       include: {
         entidades_empresas: {
-          where: {
-            tipo_relacion: 'proveedor',
-            activo: true,
-            ...(empresa_id && { empresa_id: parseInt(empresa_id) })
-          },
           include: {
             empresa: {
               select: { id: true, nombre: true }
@@ -51,42 +48,26 @@ export async function GET(request: NextRequest) {
         },
         _count: {
           select: {
-            movimientos_entidad: true,
-            saldos: true
+            movimientos_entidad: true
           }
         }
-      },
-      orderBy: { nombre: 'asc' }
-    }
-
-    // Si filtran por empresa, añadir filtro en WHERE
-    if (empresa_id) {
-      where.entidades_empresas = {
-        some: {
-          empresa_id: parseInt(empresa_id),
-          tipo_relacion: 'proveedor',
-          activo: true
-        }
       }
-    }
+    })
 
-    const proveedores = await prisma.entidad.findMany(proveedoresQuery)
-
-    // Formatear respuesta para compatibilidad
-    const proveedoresFormateados = proveedores.map(proveedor => ({
-      id: proveedor.id,
-      nombre: proveedor.nombre,
-      telefono: proveedor.telefono,
-      activo: proveedor.activo,
-      created_at: proveedor.created_at,
-      empresas: proveedor.entidades_empresas.map(rel => ({
-        empresa_id: rel.empresa_id,
+    // Formatear respuesta para compatibilidad con frontend existente
+    const proveedoresFormateados = proveedores.map(prov => ({
+      id: prov.id,
+      nombre: prov.nombre,
+      telefono: prov.telefono,
+      activo: prov.activo,
+      created_at: prov.created_at,
+      empresas: prov.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
         empresa_nombre: rel.empresa.nombre,
-        activo: rel.activo
+        tipo_relacion: rel.tipo_relacion
       })),
-      _count: {
-        cuentas_pagar: proveedor._count.saldos, // Aproximación
-        pagos: proveedor._count.movimientos_entidad
+      contadores: {
+        movimientos_como_proveedor: prov._count.movimientos_entidad
       }
     }))
 
@@ -111,18 +92,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createProveedorSchema.parse(body)
 
-    // Verificar que la empresa existe y está activa
-    const empresa = await prisma.empresa.findUnique({
-      where: { id: validatedData.empresa_id }
-    })
-
-    if (!empresa || !empresa.activa) {
-      return NextResponse.json(
-        { error: 'Empresa no encontrada o inactiva' },
-        { status: 400 }
-      )
-    }
-
     // Verificar que no exista un proveedor con el mismo nombre
     const proveedorExistente = await prisma.entidad.findFirst({
       where: {
@@ -139,36 +108,44 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Crear proveedor en transacción
-    const result = await prisma.$transaction(async (tx) => {
-      // Crear entidad proveedor
-      const nuevoProveedor = await tx.entidad.create({
+    // Usar transacción para crear proveedor y asignarlo a todas las empresas activas
+    const resultado = await prisma.$transaction(async (tx) => {
+      // Crear proveedor como entidad
+      const proveedor = await tx.entidad.create({
         data: {
           nombre: validatedData.nombre,
           telefono: validatedData.telefono,
-          es_proveedor: true,
+          activo: validatedData.activo,
           es_empleado: false,
           es_cliente: false,
-          activo: true
+          es_proveedor: true
         }
       })
 
-      // Crear relación empresa-proveedor
-      await tx.entidadEmpresa.create({
-        data: {
-          entidad_id: nuevoProveedor.id,
-          empresa_id: validatedData.empresa_id,
-          tipo_relacion: 'proveedor',
-          activo: true
-        }
+      // Obtener todas las empresas activas y asignar el proveedor a todas
+      const empresasActivas = await tx.empresa.findMany({
+        where: { activa: true },
+        select: { id: true }
       })
 
-      return nuevoProveedor
+      // Crear relaciones con TODAS las empresas activas
+      if (empresasActivas.length > 0) {
+        await tx.entidadEmpresa.createMany({
+          data: empresasActivas.map(empresa => ({
+            entidad_id: proveedor.id,
+            empresa_id: empresa.id,
+            tipo_relacion: 'proveedor',
+            activo: true
+          }))
+        })
+      }
+
+      return proveedor
     })
 
-    // Obtener proveedor completo para respuesta
+    // Obtener proveedor completo con empresas para respuesta
     const proveedorCompleto = await prisma.entidad.findUnique({
-      where: { id: result.id },
+      where: { id: resultado.id },
       include: {
         entidades_empresas: {
           include: {
@@ -182,12 +159,16 @@ export async function POST(request: NextRequest) {
 
     // Formatear respuesta para compatibilidad
     const proveedorFormateado = {
-      id: proveedorCompleto!.id,
-      nombre: proveedorCompleto!.nombre,
-      telefono: proveedorCompleto!.telefono,
-      activo: proveedorCompleto!.activo,
-      created_at: proveedorCompleto!.created_at,
-      empresa: proveedorCompleto!.entidades_empresas[0]?.empresa
+      id: resultado.id,
+      nombre: resultado.nombre,
+      telefono: resultado.telefono,
+      activo: resultado.activo,
+      created_at: resultado.created_at,
+      empresas: proveedorCompleto?.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })) || []
     }
 
     return NextResponse.json({ proveedor: proveedorFormateado }, { status: 201 })

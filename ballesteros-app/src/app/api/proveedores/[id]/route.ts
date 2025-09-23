@@ -5,8 +5,9 @@ import { z } from 'zod'
 
 // Esquema de validación para actualizar proveedor
 const updateProveedorSchema = z.object({
-  empresa_id: z.number().int().positive().optional(),
-  nombre: z.string().min(1).max(255).optional()
+  nombre: z.string().min(1).max(255).optional(),
+  telefono: z.string().max(20).optional().nullable(),
+  activo: z.boolean().optional()
 })
 
 // GET /api/proveedores/[id] - Obtener proveedor por ID
@@ -29,46 +30,33 @@ export async function GET(
       )
     }
 
-    const proveedor = await prisma.proveedor.findUnique({
-      where: { id: proveedorId },
+    const proveedor = await prisma.entidad.findUnique({
+      where: {
+        id: proveedorId,
+        es_proveedor: true
+      },
       include: {
-        empresa: {
-          select: {
-            id: true,
-            nombre: true,
-            activa: true
+        entidades_empresas: {
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
           }
         },
-        cuentas_pagar: {
+        movimientos_entidad: {
           select: {
             id: true,
-            fecha_compra: true,
-            monto: true,
-            numero_factura: true,
-            fecha_vencimiento: true,
-            estado: true,
-            saldo_pendiente: true,
-            categoria: { select: { nombre: true } },
-            subcategoria: { select: { nombre: true } }
-          },
-          orderBy: { fecha_compra: 'desc' },
-          take: 20
-        },
-        pagos: {
-          select: {
-            id: true,
+            tipo_movimiento: true,
             fecha: true,
             monto: true,
-            forma_pago: true,
             referencia: true
           },
           orderBy: { fecha: 'desc' },
-          take: 20
+          take: 10
         },
         _count: {
           select: {
-            cuentas_pagar: true,
-            pagos: true
+            movimientos_entidad: true
           }
         }
       }
@@ -81,28 +69,24 @@ export async function GET(
       )
     }
 
-    // Calcular totales
-    const totalCuentasPagar = await prisma.cuentaPorPagar.aggregate({
-      where: { proveedor_id: proveedorId },
-      _sum: {
-        saldo_pendiente: true
+    // Formatear respuesta para compatibilidad
+    const proveedorFormateado = {
+      ...proveedor,
+      empresas: proveedor.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })),
+      contadores: {
+        movimientos_como_proveedor: proveedor._count.movimientos_entidad
       }
-    })
+    }
 
-    const totalPagos = await prisma.pagoProveedor.aggregate({
-      where: { proveedor_id: proveedorId },
-      _sum: {
-        monto: true
-      }
-    })
+    // Remover campos internos
+    delete (proveedorFormateado as any).entidades_empresas
+    delete (proveedorFormateado as any)._count
 
-    return NextResponse.json({
-      proveedor: {
-        ...proveedor,
-        total_saldo_pendiente: Number((totalCuentasPagar._sum.saldo_pendiente || 0).toFixed(2)),
-        total_pagos: Number((totalPagos._sum.monto || 0).toFixed(2))
-      }
-    })
+    return NextResponse.json({ proveedor: proveedorFormateado })
   } catch (error) {
     console.error('Error al obtener proveedor:', error)
     return NextResponse.json(
@@ -136,8 +120,11 @@ export async function PUT(
     const validatedData = updateProveedorSchema.parse(body)
 
     // Verificar que el proveedor existe
-    const proveedorExistente = await prisma.proveedor.findUnique({
-      where: { id: proveedorId }
+    const proveedorExistente = await prisma.entidad.findUnique({
+      where: {
+        id: proveedorId,
+        es_proveedor: true
+      }
     })
 
     if (!proveedorExistente) {
@@ -147,55 +134,55 @@ export async function PUT(
       )
     }
 
-    // Si se está cambiando la empresa, verificar que existe y está activa
-    if (validatedData.empresa_id) {
-      const empresa = await prisma.empresa.findUnique({
-        where: { id: validatedData.empresa_id }
-      })
-
-      if (!empresa || !empresa.activa) {
-        return NextResponse.json(
-          { error: 'Nueva empresa no encontrada o inactiva' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Si se está actualizando el nombre o empresa, verificar unicidad
-    if (validatedData.nombre || validatedData.empresa_id) {
-      const empresa_id = validatedData.empresa_id || proveedorExistente.empresa_id
-      const nombre = validatedData.nombre || proveedorExistente.nombre
-
-      const otroProveedor = await prisma.proveedor.findFirst({
+    // Si se está actualizando el nombre, verificar que no exista otro proveedor con ese nombre
+    if (validatedData.nombre) {
+      const otroProveedor = await prisma.entidad.findFirst({
         where: {
-          empresa_id: empresa_id,
-          nombre: nombre,
+          nombre: validatedData.nombre,
+          es_proveedor: true,
           id: { not: proveedorId }
         }
       })
 
       if (otroProveedor) {
         return NextResponse.json(
-          { error: 'Ya existe otro proveedor con ese nombre en esa empresa' },
+          { error: 'Ya existe otro proveedor con ese nombre' },
           { status: 400 }
         )
       }
     }
 
-    const proveedor = await prisma.proveedor.update({
+    // Actualizar proveedor (las empresas se mantienen automáticamente)
+    const proveedor = await prisma.entidad.update({
       where: { id: proveedorId },
-      data: validatedData,
+      data: validatedData
+    })
+
+    // Obtener proveedor completo con relaciones para respuesta
+    const proveedorCompleto = await prisma.entidad.findUnique({
+      where: { id: proveedorId },
       include: {
-        empresa: {
-          select: {
-            id: true,
-            nombre: true
+        entidades_empresas: {
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
           }
         }
       }
     })
 
-    return NextResponse.json({ proveedor })
+    // Formatear respuesta
+    const proveedorFormateado = {
+      ...proveedor,
+      empresas: proveedorCompleto?.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })) || []
+    }
+
+    return NextResponse.json({ proveedor: proveedorFormateado })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -233,15 +220,10 @@ export async function DELETE(
     }
 
     // Verificar que el proveedor existe
-    const proveedor = await prisma.proveedor.findUnique({
-      where: { id: proveedorId },
-      include: {
-        _count: {
-          select: {
-            cuentas_pagar: true,
-            pagos: true
-          }
-        }
+    const proveedor = await prisma.entidad.findUnique({
+      where: {
+        id: proveedorId,
+        es_proveedor: true
       }
     })
 
@@ -252,30 +234,35 @@ export async function DELETE(
       )
     }
 
-    // Verificar que no tenga cuentas por pagar o pagos asociados
-    const totalRegistros = proveedor._count.cuentas_pagar + proveedor._count.pagos
+    // Verificar que no tenga movimientos activos pendientes
+    const movimientosActivos = await prisma.movimiento.count({
+      where: {
+        entidad_relacionada_id: proveedorId
+      }
+    })
 
-    if (totalRegistros > 0) {
+    if (movimientosActivos > 0) {
       return NextResponse.json(
         {
-          error: 'No se puede eliminar proveedor con registros asociados',
-          cuentas_pagar: proveedor._count.cuentas_pagar,
-          pagos: proveedor._count.pagos
+          error: 'No se puede desactivar proveedor con movimientos activos',
+          movimientos_activos: movimientosActivos
         },
         { status: 400 }
       )
     }
 
-    // Eliminar proveedor (hard delete ya que no tiene registros)
-    await prisma.proveedor.delete({
-      where: { id: proveedorId }
+    // Soft delete: marcar como inactivo
+    const proveedorDesactivado = await prisma.entidad.update({
+      where: { id: proveedorId },
+      data: { activo: false }
     })
 
     return NextResponse.json({
-      message: 'Proveedor eliminado exitosamente'
+      message: 'Proveedor desactivado exitosamente',
+      proveedor: proveedorDesactivado
     })
   } catch (error) {
-    console.error('Error al eliminar proveedor:', error)
+    console.error('Error al desactivar proveedor:', error)
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

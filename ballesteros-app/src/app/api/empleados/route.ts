@@ -6,8 +6,8 @@ import { z } from 'zod'
 // Esquema de validación para crear empleado
 const createEmpleadoSchema = z.object({
   nombre: z.string().min(1).max(255),
-  telefono: z.string().max(20).optional(),
-  puesto: z.string().max(100).optional(),
+  telefono: z.string().max(20).optional().nullable(),
+  puesto: z.string().max(100).optional().nullable(),
   puede_operar_caja: z.boolean().optional().default(false),
   activo: z.boolean().optional().default(true)
 })
@@ -44,6 +44,13 @@ export async function GET(request: NextRequest) {
       where,
       orderBy: { nombre: 'asc' },
       include: {
+        entidades_empresas: {
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
+          }
+        },
         _count: {
           select: {
             movimientos_empleado: true,
@@ -62,9 +69,14 @@ export async function GET(request: NextRequest) {
       puede_operar_caja: emp.puede_operar_caja,
       activo: emp.activo,
       created_at: emp.created_at,
-      _count: {
-        cortes: emp._count.cortes,
-        prestamos: emp._count.movimientos_empleado // Aproximación
+      empresas: emp.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })),
+      contadores: {
+        movimientos_como_empleado: emp._count.movimientos_empleado,
+        cortes: emp._count.cortes
       }
     }))
 
@@ -105,29 +117,71 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Crear empleado como entidad
-    const empleado = await prisma.entidad.create({
-      data: {
-        nombre: validatedData.nombre,
-        telefono: validatedData.telefono,
-        puesto: validatedData.puesto,
-        puede_operar_caja: validatedData.puede_operar_caja,
-        activo: validatedData.activo,
-        es_empleado: true,
-        es_cliente: false,
-        es_proveedor: false
+    // Usar transacción para crear empleado y asignarlo a todas las empresas activas
+    const resultado = await prisma.$transaction(async (tx) => {
+      // Crear empleado como entidad
+      const empleado = await tx.entidad.create({
+        data: {
+          nombre: validatedData.nombre,
+          telefono: validatedData.telefono,
+          puesto: validatedData.puesto,
+          puede_operar_caja: validatedData.puede_operar_caja,
+          activo: validatedData.activo,
+          es_empleado: true,
+          es_cliente: false,
+          es_proveedor: false
+        }
+      })
+
+      // Obtener todas las empresas activas y asignar el empleado a todas
+      const empresasActivas = await tx.empresa.findMany({
+        where: { activa: true },
+        select: { id: true }
+      })
+
+      // Crear relaciones con TODAS las empresas activas
+      if (empresasActivas.length > 0) {
+        await tx.entidadEmpresa.createMany({
+          data: empresasActivas.map(empresa => ({
+            entidad_id: empleado.id,
+            empresa_id: empresa.id,
+            tipo_relacion: 'empleado',
+            activo: true
+          }))
+        })
+      }
+
+      return empleado
+    })
+
+    // Obtener empleado completo con empresas para respuesta
+    const empleadoCompleto = await prisma.entidad.findUnique({
+      where: { id: resultado.id },
+      include: {
+        entidades_empresas: {
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
+          }
+        }
       }
     })
 
     // Formatear respuesta para compatibilidad
     const empleadoFormateado = {
-      id: empleado.id,
-      nombre: empleado.nombre,
-      telefono: empleado.telefono,
-      puesto: empleado.puesto,
-      puede_operar_caja: empleado.puede_operar_caja,
-      activo: empleado.activo,
-      created_at: empleado.created_at
+      id: resultado.id,
+      nombre: resultado.nombre,
+      telefono: resultado.telefono,
+      puesto: resultado.puesto,
+      puede_operar_caja: resultado.puede_operar_caja,
+      activo: resultado.activo,
+      created_at: resultado.created_at,
+      empresas: empleadoCompleto?.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })) || []
     }
 
     return NextResponse.json({ empleado: empleadoFormateado }, { status: 201 })

@@ -367,6 +367,17 @@ export default function EditarCortePage() {
                 </div>
               </div>
 
+              {/* Total Tarjetas (Calculado) */}
+              <div className="p-3 bg-purple-50 rounded-lg border">
+                <h4 className="font-medium text-purple-800 mb-2">Total Tarjetas</h4>
+                <p className="text-xl font-bold text-purple-600">
+                  ${Number(camposCalculados.venta_tarjeta || 0).toFixed(2)}
+                </p>
+                <p className="text-xs text-purple-700 mt-1">
+                  Crédito + Débito (calculado automáticamente)
+                </p>
+              </div>
+
               {/* Transferencias */}
               <div>
                 <Label htmlFor="venta_transferencia">Transferencias</Label>

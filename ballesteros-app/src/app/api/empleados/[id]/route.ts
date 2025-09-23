@@ -6,8 +6,8 @@ import { z } from 'zod'
 // Esquema de validación para actualizar empleado
 const updateEmpleadoSchema = z.object({
   nombre: z.string().min(1).max(255).optional(),
-  telefono: z.string().max(20).optional(),
-  puesto: z.string().max(100).optional(),
+  telefono: z.string().max(20).optional().nullable(),
+  puesto: z.string().max(100).optional().nullable(),
   puede_operar_caja: z.boolean().optional(),
   activo: z.boolean().optional()
 })
@@ -38,6 +38,13 @@ export async function GET(
         es_empleado: true
       },
       include: {
+        entidades_empresas: {
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
+          }
+        },
         cortes: {
           select: {
             id: true,
@@ -76,7 +83,25 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ empleado })
+    // Formatear respuesta para compatibilidad
+    const empleadoFormateado = {
+      ...empleado,
+      empresas: empleado.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })),
+      contadores: {
+        movimientos_como_empleado: empleado._count.movimientos_empleado,
+        cortes: empleado._count.cortes
+      }
+    }
+
+    // Remover campos internos
+    delete (empleadoFormateado as any).entidades_empresas
+    delete (empleadoFormateado as any)._count
+
+    return NextResponse.json({ empleado: empleadoFormateado })
   } catch (error) {
     console.error('Error al obtener empleado:', error)
     return NextResponse.json(
@@ -142,12 +167,37 @@ export async function PUT(
       }
     }
 
+    // Actualizar empleado (las empresas se mantienen automáticamente)
     const empleado = await prisma.entidad.update({
       where: { id: empleadoId },
       data: validatedData
     })
 
-    return NextResponse.json({ empleado })
+    // Obtener empleado completo con relaciones para respuesta
+    const empleadoCompleto = await prisma.entidad.findUnique({
+      where: { id: empleadoId },
+      include: {
+        entidades_empresas: {
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
+          }
+        }
+      }
+    })
+
+    // Formatear respuesta
+    const empleadoFormateado = {
+      ...empleado,
+      empresas: empleadoCompleto?.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })) || []
+    }
+
+    return NextResponse.json({ empleado: empleadoFormateado })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

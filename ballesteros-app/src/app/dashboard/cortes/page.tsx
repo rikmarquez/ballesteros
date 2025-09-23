@@ -22,7 +22,9 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  ArrowLeft,
+  Calculator
 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -274,17 +276,28 @@ export default function CortesPage() {
   return (
     <div className="container mx-auto p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Cortes de Caja</h1>
-          <p className="text-gray-600 mt-1">Nuevo flujo simplificado - Solo totales</p>
-        </div>
-        <Link href="/dashboard/cortes/nuevo">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Corte
+      <div className="flex items-center gap-4 mb-6">
+        <Link href="/">
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Volver al Dashboard
           </Button>
         </Link>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between flex-1">
+          <div className="flex items-center gap-3">
+            <Calculator className="h-8 w-8 text-green-600" />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Cortes de Caja</h1>
+              <p className="text-gray-600">Nuevo flujo simplificado - Solo totales</p>
+            </div>
+          </div>
+          <Link href="/dashboard/cortes/nuevo">
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nuevo Corte
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filtros */}

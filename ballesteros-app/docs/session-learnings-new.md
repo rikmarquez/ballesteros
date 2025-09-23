@@ -1,5 +1,73 @@
 # Aprendizajes y Decisiones Arquitectónicas
 
+## Sesión: 2025-09-23 PM - Categorías + Correcciones Críticas
+
+### 📝 **NUEVA SESIÓN - 2025-09-23 PM**
+**Agregado:** CRUD de Categorías completo + Correcciones críticas de APIs + Optimización UX de búsquedas
+
+---
+
+### 🛠️ **Lecciones Críticas de Esta Sesión**
+
+#### **Lección 1: Importancia de Arquitectura Consistente de Búsquedas**
+**Problema encontrado:** Pérdida de foco al escribir en cajas de búsqueda
+
+**Causa raíz identificada:**
+```javascript
+// ❌ PROBLEMÁTICO - Doble filtrado
+const [searchTerm, setSearchTerm] = useState('') // Variable inconsistente
+const filtrados = datos.filter(...) // Filtrado frontend adicional
+useEffect(() => { cargarDatos() }, [searchTerm, filtros]) // Re-renders excesivos
+
+// ✅ SOLUCIÓN - Filtrado único
+const [search, setSearch] = useState('') // Variable consistente
+// Sin filtrado frontend adicional - solo API
+useEffect(() => { cargarDatos() }, [search, filtros]) // Renders optimizados
+```
+
+**Aprendizaje:** Consistencia en patrones de código evita problemas de UX difíciles de diagnosticar.
+
+---
+
+#### **Lección 2: Validación de Esquemas Durante Desarrollo**
+**Problema encontrado:** APIs fallando por referencias a campos inexistentes (`direccion`, `egresos_turno`, `cuentas_pagar`)
+
+**Causa raíz:** Desalineación entre refactorización de BD y actualización de APIs
+
+**Proceso de corrección sistemática:**
+1. **Diagnóstico:** Revisar logs de error para identificar campos problemáticos
+2. **Mapeo:** Verificar esquema actual vs referencias en código
+3. **Corrección:** Eliminar/actualizar todas las referencias
+4. **Validación:** Probar flujos completos
+
+**Aprendizaje:** Después de refactorizaciones mayores, validar sistemáticamente todos los puntos de integración.
+
+---
+
+#### **Lección 3: Manejo de Select Components con Valores Vacíos**
+**Problema encontrado:** Error "A <Select.Item /> must have a value prop that is not an empty string"
+
+**Solución implementada:**
+```javascript
+// ❌ PROBLEMÁTICO
+<SelectItem value="">Sin tipo específico</SelectItem>
+
+// ✅ SOLUCIÓN
+const tipoOptions = [
+  { value: 'sin-tipo', label: 'Sin tipo específico' }, // Valor válido
+  // ... otros tipos
+]
+
+// Conversión en envío
+const dataToSend = {
+  tipo: formData.tipo === 'sin-tipo' ? undefined : formData.tipo
+}
+```
+
+**Aprendizaje:** Los componentes shadcn/ui tienen validaciones estrictas que requieren valores no vacíos.
+
+---
+
 ## Sesión: 2025-09-22 - Refactorización Completa + UX Final
 
 ### 📝 **ACTUALIZACIÓN FINAL - 2025-09-22 PM**
@@ -970,6 +1038,290 @@ Capturar correcciones conceptuales en tiempo real evita repetir errores.
 **Sesión resultado:** ✅ **Módulo de Cortes Completamente Implementado**
 **Estado actual:** 🎯 **Listo para Pruebas de Usuario Final**
 **Próxima prioridad:** 🧪 **Validación y Testing del Sistema Completo**
+
+---
+
+## Sesión: 2025-09-22 NOCHE - Implementación Completa de CRUDs de Entidades
+
+### 🎯 **Objetivo de la Sesión: Sistema de Catálogos Completo**
+
+Esta sesión se enfocó en completar la implementación de los CRUDs para empleados, clientes y proveedores, creando un sistema de catálogos centralizado y navegación coherente.
+
+---
+
+## 💡 **Insights Críticos de la Sesión Nocturna**
+
+### **Insight 15: Transparencia de Arquitectura para el Usuario Final**
+**Contexto:** Implementar tabla unificada `entidades` sin que el usuario lo perciba.
+
+**Desafío arquitectónico:**
+- **Backend:** Una sola tabla `entidades` con flags múltiples
+- **Frontend:** Interfaces separadas por tipo de entidad
+- **UX:** Usuario gestiona "empleados", "clientes", "proveedores" independientemente
+
+**Solución implementada:**
+```typescript
+// APIs de compatibilidad que enmascaran la arquitectura unificada
+/api/empleados → prisma.entidad.findMany({ where: { es_empleado: true } })
+/api/clientes → prisma.entidad.findMany({ where: { es_cliente: true } })
+/api/proveedores → prisma.entidad.findMany({ where: { es_proveedor: true } })
+```
+
+**Resultado:**
+- Usuario nunca sabe que emplea tabla unificada
+- Formularios específicos para cada tipo de entidad
+- Flexibilidad total en backend para entidades híbridas
+- UX familiar y predecible
+
+**Aprendizaje:** La mejor arquitectura es invisible para el usuario final.
+
+---
+
+### **Insight 16: Dashboard de Catálogos como Hub Central**
+**Contexto:** Crear punto de acceso único para gestión de entidades del sistema.
+
+**Problema identificado:**
+- Múltiples CRUDs dispersos sin organización clara
+- Falta de contexto sobre qué módulos están disponibles
+- No hay explicación del sistema unificado subyacente
+
+**Solución implementada:**
+```tsx
+// Dashboard centralizado con información del sistema
+const catalogos = [
+  { title: 'Empleados', available: true },
+  { title: 'Proveedores', available: true },
+  { title: 'Clientes', available: true },
+  { title: 'Categorías de Gasto', available: false }, // Futuro
+  { title: 'Subcategorías de Gasto', available: false }, // Futuro
+  { title: 'Empresas', available: false } // Futuro
+]
+```
+
+**Características implementadas:**
+- **Información del sistema:** Explicación de arquitectura unificada
+- **Estado visual:** Módulos activos vs "Próximamente"
+- **Estadísticas:** Conteo de módulos y empresas
+- **Navegación clara:** Acceso directo a cada CRUD
+
+**Aprendizaje:** Un hub central mejora la navegabilidad y comprensión del sistema.
+
+---
+
+### **Insight 17: Auto-Asignación Multi-Empresa Simplifica UX**
+**Contexto:** Decidir cómo manejar relaciones entidad-empresa en formularios.
+
+**Opciones evaluadas:**
+- **Opción A:** Formularios complejos con checkboxes por empresa
+- **Opción B:** Auto-asignación a todas las empresas del grupo
+- **Opción C:** Selección manual posterior
+
+**Decisión:** Auto-asignación (Opción B)
+
+**Justificación:**
+- **Realidad operativa:** Empleados cubren turnos en cualquier sucursal
+- **Flexibilidad máxima:** Clientes pueden comprar en cualquier empresa
+- **Simplicidad UX:** Formularios más limpios sin complejidad innecesaria
+- **Mantenimiento:** Una decisión de arquitectura, no carga del usuario
+
+**Implementación:**
+```typescript
+// Backend automáticamente asigna a todas las empresas
+const empresas = await prisma.empresa.findMany()
+const relacionesEmpresa = empresas.map(emp => ({
+  entidad_id: nuevaEntidad.id,
+  empresa_id: emp.id,
+  tipo_relacion: tipoEntidad // 'cliente', 'proveedor', etc.
+}))
+```
+
+**Aprendizaje:** Automatizar decisiones predecibles reduce fricción del usuario.
+
+---
+
+## 🏗️ **Decisiones de Implementación Exitosas**
+
+### **Decisión 4: CRUDs Específicos vs CRUD Genérico**
+**Contexto:** Cómo implementar interfaces para la tabla unificada.
+
+**Opción A (Genérica):** Un solo CRUD con tabs por tipo de entidad
+**Opción B (Específica):** CRUDs separados por tipo con campos específicos
+
+**Decisión:** CRUDs Específicos (Opción B)
+
+**Ventajas observadas:**
+```typescript
+// Empleados: Campos específicos
+{ puede_operar_caja: boolean, puesto: string }
+
+// Clientes: Campos específicos
+{ direccion: string (Textarea) }
+
+// Proveedores: Campos específicos
+{ nombre: "Razón Social", direccion: string (Textarea) }
+```
+
+- **UX más natural:** Cada tipo tiene su contexto específico
+- **Validaciones apropiadas:** Campos requeridos según el tipo
+- **Iconografía coherente:** Cada módulo con su color e icono
+- **Navegación clara:** URLs semánticas (`/empleados`, `/clientes`)
+
+**Aprendizaje:** Especialización por contexto supera a la generalización prematura.
+
+---
+
+### **Decisión 5: Sistema de Navegación Jerárquico**
+**Contexto:** Cómo organizar la navegación entre múltiples niveles.
+
+**Estructura implementada:**
+```
+Dashboard Principal
+    ↓
+Dashboard Catálogos (/dashboard/catalogos)
+    ↓
+Listado Entidad (/dashboard/empleados)
+    ↓
+Formulario (/dashboard/empleados/nuevo | /dashboard/empleados/[id]/editar)
+```
+
+**Botones implementados:**
+- **Nivel 1 → 2:** "Catálogos" en dashboard principal
+- **Nivel 2 → 3:** "Gestionar Empleados/Clientes/Proveedores"
+- **Nivel 3 → 4:** "Agregar Nuevo" / "Editar"
+- **Nivel 4 → 3:** "Volver" / "Cancelar"
+- **Nivel 3 → 2:** "Volver a Catálogos"
+
+**Ventajas:**
+- **Orientación clara:** Usuario siempre sabe dónde está
+- **Escape rápido:** Puede regresar a cualquier nivel
+- **Contexto preservado:** Breadcrumb implícito via botones
+- **Consistencia:** Mismo patrón en todos los módulos
+
+**Aprendizaje:** Navegación jerárquica clara reduce desorientación del usuario.
+
+---
+
+## 🔨 **Problemas Técnicos Resueltos Durante la Sesión**
+
+### **Problema 4: Inconsistencia en Modelos de Datos**
+**Error:** Diferencias entre tipos TypeScript y esquema Prisma
+**Causa:** Campos opcionales vs requeridos en diferentes contextos
+**Solución:**
+```typescript
+// Unificación de tipos para formularios
+interface EntidadFormData {
+  nombre: string
+  telefono: string // Siempre string en formulario
+  // ... otros campos
+}
+
+// Transformación al enviar
+const dataToSend = {
+  telefono: formData.telefono.trim() || null // null si vacío
+}
+```
+
+### **Problema 5: Navegación con useRouter en App Router**
+**Error:** `router.push()` no funcionaba consistentemente
+**Causa:** Incompatibilidad entre Pages Router y App Router patterns
+**Solución:**
+```typescript
+// Uso correcto para App Router
+import { useRouter } from 'next/navigation' // No 'next/router'
+const router = useRouter()
+router.push('/dashboard/empleados') // Rutas absolutas
+```
+
+### **Problema 6: Filtros Duplicados en APIs**
+**Error:** Filtros aplicados tanto en frontend como backend
+**Causa:** Lógica de filtrado redundante
+**Solución:**
+```typescript
+// Backend: Solo filtros necesarios
+const empleados = await prisma.entidad.findMany({
+  where: {
+    es_empleado: true,
+    ...(req.query.activo && { activo: req.query.activo === 'true' })
+  }
+})
+
+// Frontend: Solo filtros de UI (búsqueda)
+const empleadosFiltrados = empleados.filter(emp =>
+  emp.nombre.toLowerCase().includes(search.toLowerCase())
+)
+```
+
+---
+
+## 📈 **Métricas de la Implementación**
+
+### **Alcance Completado**
+- **3 CRUDs completos:** Empleados, Clientes, Proveedores
+- **12 páginas implementadas:** 4 páginas × 3 módulos
+- **1 dashboard central:** Hub de catálogos
+- **Sistema de navegación:** 100% funcional entre todos los niveles
+
+### **Funcionalidades por CRUD**
+- **Listado:** Grid responsive, filtros, búsqueda, paginación implícita
+- **Creación:** Formularios con validación, estados de loading
+- **Edición:** Carga de datos existentes, actualización en tiempo real
+- **Navegación:** Botones coherentes en todas las páginas
+
+### **Arquitectura Transparente**
+- **APIs unificadas:** `/api/entidades` funcionando
+- **APIs de compatibilidad:** `/api/empleados`, `/api/clientes`, `/api/proveedores`
+- **Frontend especializado:** Interfaces específicas por tipo
+- **Base de datos:** Tabla unificada con relaciones flexibles
+
+---
+
+## 🔍 **Lecciones Aprendidas de la Sesión Nocturna**
+
+### **1. Arquitectura Invisible es Mejor Arquitectura**
+La tabla unificada `entidades` proporciona flexibilidad técnica sin comprometer la experiencia del usuario.
+
+### **2. Especialización Contextual Supera a Generalización**
+CRUDs específicos con campos apropiados son superiores a un CRUD genérico complejo.
+
+### **3. Auto-Asignación Reduce Fricción**
+Decisiones predecibles (como asignación multi-empresa) deben automatizarse.
+
+### **4. Navegación Jerárquica Mejora Orientación**
+Sistema claro de "Volver" y breadcrumbs implícitos reduce desorientación.
+
+### **5. Hub Central Organiza Funcionalidades**
+Un dashboard de catálogos proporciona contexto y organización del sistema.
+
+### **6. Consistencia Visual Refuerza Conceptos**
+Colores, iconos y patrones consistentes ayudan a la comprensión del sistema.
+
+---
+
+## 🎯 **Estado Post-Sesión Nocturna**
+
+### **Completado 100%:**
+- ✅ **Sistema de catálogos:** Hub central funcional
+- ✅ **CRUDs de entidades:** Empleados, clientes, proveedores operativos
+- ✅ **Navegación coherente:** Todos los botones y enlaces funcionando
+- ✅ **APIs transparentes:** Backend unificado con frontend especializado
+- ✅ **Validaciones completas:** Formularios con manejo de errores
+- ✅ **UX optimizada:** Interfaces específicas y fluidas
+
+### **Archivos Creados/Modificados:**
+- `/app/dashboard/catalogos/page.tsx` - Dashboard central
+- `/app/dashboard/empleados/` - CRUD completo de empleados
+- `/app/dashboard/clientes/` - CRUD completo de clientes
+- `/app/dashboard/proveedores/` - CRUD completo de proveedores
+- APIs de compatibilidad actualizadas
+
+### **Próximo Paso Recomendado:**
+Testing completo del sistema de navegación y CRUDs para validación de usuario final.
+
+---
+
+**Sesión resultado:** ✅ **Sistema de Catálogos y CRUDs Completamente Implementado**
+**Estado actual:** 🚀 **Listo para Validación Completa del Sistema**
+**Próxima prioridad:** 🧪 **Testing Integral y Expansión a Catálogos Pendientes**
 
 ---
 

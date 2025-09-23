@@ -173,79 +173,83 @@ export default function NuevoCorteePage() {
         </div>
       </div>
 
-      {/* NUEVO LAYOUT MEJORADO PARA UX */}
+      {/* INFORMACIÓN GENERAL - SECCIÓN HORIZONTAL */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg">Información General</CardTitle>
+          <CardDescription>Datos básicos del corte</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <Label htmlFor="empresa">Empresa</Label>
+              <Select
+                value={corteData.empresa_id}
+                onValueChange={(value) => setCorteData({...corteData, empresa_id: value})}
+                disabled={loadingData}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingData ? "Cargando..." : "Selecciona empresa"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {empresas.map((empresa) => (
+                    <SelectItem key={empresa.id} value={empresa.id.toString()}>
+                      {empresa.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="entidad">Cajera</Label>
+              <Select
+                value={corteData.entidad_id}
+                onValueChange={(value) => setCorteData({...corteData, entidad_id: value})}
+                disabled={loadingData}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingData ? "Cargando..." : "Selecciona cajera"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {entidades.map((entidad) => (
+                    <SelectItem key={entidad.id} value={entidad.id.toString()}>
+                      {entidad.nombre} {entidad.puesto && `(${entidad.puesto})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="fecha">Fecha</Label>
+              <Input
+                id="fecha"
+                type="date"
+                value={corteData.fecha}
+                onChange={(e) => setCorteData({...corteData, fecha: e.target.value})}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="sesion">Sesión</Label>
+              <Input
+                id="sesion"
+                type="number"
+                min="1"
+                value={corteData.sesion}
+                onChange={(e) => setCorteData({...corteData, sesion: parseInt(e.target.value)})}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* LAYOUT DE 3 COLUMNAS BALANCEADAS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* COLUMNA 1: INFORMACIÓN GENERAL + VENTA NETA + EFECTIVO */}
+        {/* COLUMNA 1: VENTA NETA + EFECTIVO + CAMPOS CALCULADOS */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Información General</CardTitle>
-              <CardDescription>Datos básicos del corte</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="empresa">Empresa</Label>
-                <Select
-                  value={corteData.empresa_id}
-                  onValueChange={(value) => setCorteData({...corteData, empresa_id: value})}
-                  disabled={loadingData}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={loadingData ? "Cargando..." : "Selecciona empresa"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {empresas.map((empresa) => (
-                      <SelectItem key={empresa.id} value={empresa.id.toString()}>
-                        {empresa.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="entidad">Cajera</Label>
-                <Select
-                  value={corteData.entidad_id}
-                  onValueChange={(value) => setCorteData({...corteData, entidad_id: value})}
-                  disabled={loadingData}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={loadingData ? "Cargando..." : "Selecciona cajera"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {entidades.map((entidad) => (
-                      <SelectItem key={entidad.id} value={entidad.id.toString()}>
-                        {entidad.nombre} {entidad.puesto && `(${entidad.puesto})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="fecha">Fecha</Label>
-                <Input
-                  id="fecha"
-                  type="date"
-                  value={corteData.fecha}
-                  onChange={(e) => setCorteData({...corteData, fecha: e.target.value})}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="sesion">Sesión</Label>
-                <Input
-                  id="sesion"
-                  type="number"
-                  min="1"
-                  value={corteData.sesion}
-                  onChange={(e) => setCorteData({...corteData, sesion: parseInt(e.target.value)})}
-                />
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Venta Neta del POS */}
           <Card>
@@ -409,6 +413,17 @@ export default function NuevoCorteePage() {
                   />
                   <p className="text-xs text-gray-500 mt-1">Sin efectivo físico</p>
                 </div>
+              </div>
+
+              {/* Total Tarjetas (Calculado) */}
+              <div className="p-3 bg-purple-50 rounded-lg border">
+                <h4 className="font-medium text-purple-800 mb-2">Total Tarjetas</h4>
+                <p className="text-xl font-bold text-purple-600">
+                  ${Number(camposCalculados.venta_tarjeta || 0).toFixed(2)}
+                </p>
+                <p className="text-xs text-purple-700 mt-1">
+                  Crédito + Débito (calculado automáticamente)
+                </p>
               </div>
 
               {/* Transferencias */}

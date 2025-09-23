@@ -39,8 +39,7 @@ export async function GET(
         _count: {
           select: {
             subcategorias: true,
-            egresos_turno: true,
-            cuentas_pagar: true
+            movimientos: true
           }
         }
       }
@@ -169,25 +168,24 @@ export async function DELETE(
       )
     }
 
-    // Verificar que no tenga egresos o cuentas por pagar activas
+    // Verificar que no tenga movimientos asociados
     const usosActivos = await prisma.categoriaGasto.findUnique({
       where: { id: categoriaId },
       include: {
         _count: {
           select: {
-            egresos_turno: true,
-            cuentas_pagar: true
+            movimientos: true,
+            subcategorias: true
           }
         }
       }
     })
 
-    if (usosActivos && (usosActivos._count.egresos_turno > 0 || usosActivos._count.cuentas_pagar > 0)) {
+    if (usosActivos && usosActivos._count.movimientos > 0) {
       return NextResponse.json(
         {
-          error: 'No se puede desactivar categoría con registros asociados',
-          egresos: usosActivos._count.egresos_turno,
-          cuentas_pagar: usosActivos._count.cuentas_pagar
+          error: 'No se puede desactivar categoría con movimientos asociados',
+          movimientos: usosActivos._count.movimientos
         },
         { status: 400 }
       )

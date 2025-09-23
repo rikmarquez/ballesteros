@@ -23,7 +23,18 @@
       "Bash(start http://localhost:3002/dashboard/cortes/1/editar)",
       "Bash(start http://localhost:3003/dashboard/cortes)",
       "Bash(start http://localhost:3004/dashboard/cortes)",
-      "Bash(start http://localhost:3004/dashboard/cortes/1/editar)"
+      "Bash(start http://localhost:3004/dashboard/cortes/1/editar)",
+      "Bash(rm:*)",
+      "Bash(start http://localhost:3004/dashboard/catalogos)",
+      "Bash(start http://localhost:3004/dashboard/proveedores)",
+      "Bash(start http://localhost:3004/dashboard/clientes)",
+      "Bash(start http://localhost:3004/dashboard/proveedores/1/editar)",
+      "Bash(start http://localhost:3004/dashboard/proveedores/15/editar)",
+      "Bash(start http://localhost:3000/dashboard/catalogos)",
+      "Bash(start http://localhost:3000/dashboard/categorias)",
+      "Bash(start http://localhost:3000/dashboard/categorias/1/editar)",
+      "Bash(start http://localhost:3000/dashboard/proveedores)",
+      "Bash(start http://localhost:3000/dashboard/clientes)"
     ],
     "deny": [],
     "ask": []

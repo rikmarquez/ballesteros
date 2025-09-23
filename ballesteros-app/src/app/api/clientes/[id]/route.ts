@@ -5,10 +5,9 @@ import { z } from 'zod'
 
 // Esquema de validación para actualizar cliente
 const updateClienteSchema = z.object({
-  empresa_id: z.number().int().positive().optional(),
   nombre: z.string().min(1).max(255).optional(),
-  telefono: z.string().max(20).optional(),
-  saldo_inicial: z.number().optional().transform(val => val ? Number(val.toFixed(2)) : val)
+  telefono: z.string().max(20).optional().nullable(),
+  activo: z.boolean().optional()
 })
 
 // GET /api/clientes/[id] - Obtener cliente por ID
@@ -31,47 +30,33 @@ export async function GET(
       )
     }
 
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: clienteId },
+    const cliente = await prisma.entidad.findUnique({
+      where: {
+        id: clienteId,
+        es_cliente: true
+      },
       include: {
-        empresa: {
-          select: {
-            id: true,
-            nombre: true,
-            activa: true
+        entidades_empresas: {
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
           }
         },
-        movimientos: {
+        movimientos_entidad: {
           select: {
             id: true,
-            tipo: true,
+            tipo_movimiento: true,
             fecha: true,
             monto: true,
             referencia: true
           },
           orderBy: { fecha: 'desc' },
-          take: 20
-        },
-        ventas_credito: {
-          select: {
-            id: true,
-            monto: true,
-            forma_pago: true,
-            corte: {
-              select: {
-                fecha: true,
-                empresa: { select: { nombre: true } }
-              }
-            }
-          },
-          orderBy: { created_at: 'desc' },
           take: 10
         },
         _count: {
           select: {
-            movimientos: true,
-            ventas_credito: true,
-            ingresos_turno: true
+            movimientos_entidad: true
           }
         }
       }
@@ -84,22 +69,24 @@ export async function GET(
       )
     }
 
-    // Calcular saldo actual
-    const saldoActual = await prisma.movimientoCliente.aggregate({
-      where: { cliente_id: clienteId },
-      _sum: {
-        monto: true
+    // Formatear respuesta para compatibilidad
+    const clienteFormateado = {
+      ...cliente,
+      empresas: cliente.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })),
+      contadores: {
+        movimientos_como_cliente: cliente._count.movimientos_entidad
       }
-    })
+    }
 
-    const saldo_actual = cliente.saldo_inicial + (saldoActual._sum.monto || 0)
+    // Remover campos internos
+    delete (clienteFormateado as any).entidades_empresas
+    delete (clienteFormateado as any)._count
 
-    return NextResponse.json({
-      cliente: {
-        ...cliente,
-        saldo_actual: Number(saldo_actual.toFixed(2))
-      }
-    })
+    return NextResponse.json({ cliente: clienteFormateado })
   } catch (error) {
     console.error('Error al obtener cliente:', error)
     return NextResponse.json(
@@ -133,8 +120,11 @@ export async function PUT(
     const validatedData = updateClienteSchema.parse(body)
 
     // Verificar que el cliente existe
-    const clienteExistente = await prisma.cliente.findUnique({
-      where: { id: clienteId }
+    const clienteExistente = await prisma.entidad.findUnique({
+      where: {
+        id: clienteId,
+        es_cliente: true
+      }
     })
 
     if (!clienteExistente) {
@@ -144,55 +134,55 @@ export async function PUT(
       )
     }
 
-    // Si se está cambiando la empresa, verificar que existe y está activa
-    if (validatedData.empresa_id) {
-      const empresa = await prisma.empresa.findUnique({
-        where: { id: validatedData.empresa_id }
-      })
-
-      if (!empresa || !empresa.activa) {
-        return NextResponse.json(
-          { error: 'Nueva empresa no encontrada o inactiva' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Si se está actualizando el nombre o empresa, verificar unicidad
-    if (validatedData.nombre || validatedData.empresa_id) {
-      const empresa_id = validatedData.empresa_id || clienteExistente.empresa_id
-      const nombre = validatedData.nombre || clienteExistente.nombre
-
-      const otroCliente = await prisma.cliente.findFirst({
+    // Si se está actualizando el nombre, verificar que no exista otro cliente con ese nombre
+    if (validatedData.nombre) {
+      const otroCliente = await prisma.entidad.findFirst({
         where: {
-          empresa_id: empresa_id,
-          nombre: nombre,
+          nombre: validatedData.nombre,
+          es_cliente: true,
           id: { not: clienteId }
         }
       })
 
       if (otroCliente) {
         return NextResponse.json(
-          { error: 'Ya existe otro cliente con ese nombre en esa empresa' },
+          { error: 'Ya existe otro cliente con ese nombre' },
           { status: 400 }
         )
       }
     }
 
-    const cliente = await prisma.cliente.update({
+    // Actualizar cliente (las empresas se mantienen automáticamente)
+    const cliente = await prisma.entidad.update({
       where: { id: clienteId },
-      data: validatedData,
+      data: validatedData
+    })
+
+    // Obtener cliente completo con relaciones para respuesta
+    const clienteCompleto = await prisma.entidad.findUnique({
+      where: { id: clienteId },
       include: {
-        empresa: {
-          select: {
-            id: true,
-            nombre: true
+        entidades_empresas: {
+          include: {
+            empresa: {
+              select: { id: true, nombre: true }
+            }
           }
         }
       }
     })
 
-    return NextResponse.json({ cliente })
+    // Formatear respuesta
+    const clienteFormateado = {
+      ...cliente,
+      empresas: clienteCompleto?.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })) || []
+    }
+
+    return NextResponse.json({ cliente: clienteFormateado })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -230,16 +220,10 @@ export async function DELETE(
     }
 
     // Verificar que el cliente existe
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: clienteId },
-      include: {
-        _count: {
-          select: {
-            movimientos: true,
-            ventas_credito: true,
-            ingresos_turno: true
-          }
-        }
+    const cliente = await prisma.entidad.findUnique({
+      where: {
+        id: clienteId,
+        es_cliente: true
       }
     })
 
@@ -250,31 +234,35 @@ export async function DELETE(
       )
     }
 
-    // Verificar que no tenga movimientos asociados
-    const totalMovimientos = cliente._count.movimientos + cliente._count.ventas_credito + cliente._count.ingresos_turno
+    // Verificar que no tenga movimientos activos pendientes
+    const movimientosActivos = await prisma.movimiento.count({
+      where: {
+        entidad_relacionada_id: clienteId
+      }
+    })
 
-    if (totalMovimientos > 0) {
+    if (movimientosActivos > 0) {
       return NextResponse.json(
         {
-          error: 'No se puede eliminar cliente con movimientos asociados',
-          movimientos: cliente._count.movimientos,
-          ventas_credito: cliente._count.ventas_credito,
-          ingresos_turno: cliente._count.ingresos_turno
+          error: 'No se puede desactivar cliente con movimientos activos',
+          movimientos_activos: movimientosActivos
         },
         { status: 400 }
       )
     }
 
-    // Eliminar cliente (hard delete ya que no tiene movimientos)
-    await prisma.cliente.delete({
-      where: { id: clienteId }
+    // Soft delete: marcar como inactivo
+    const clienteDesactivado = await prisma.entidad.update({
+      where: { id: clienteId },
+      data: { activo: false }
     })
 
     return NextResponse.json({
-      message: 'Cliente eliminado exitosamente'
+      message: 'Cliente desactivado exitosamente',
+      cliente: clienteDesactivado
     })
   } catch (error) {
-    console.error('Error al eliminar cliente:', error)
+    console.error('Error al desactivar cliente:', error)
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

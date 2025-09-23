@@ -5,10 +5,9 @@ import { z } from 'zod'
 
 // Esquema de validación para crear cliente
 const createClienteSchema = z.object({
-  empresa_id: z.number().int().positive(),
   nombre: z.string().min(1).max(255),
-  telefono: z.string().max(20).optional(),
-  saldo_inicial: z.number().default(0).transform(val => Number(val.toFixed(2)))
+  telefono: z.string().max(20).optional().nullable(),
+  activo: z.boolean().optional().default(true)
 })
 
 // GET /api/clientes - Listar clientes (usando tabla entidades)
@@ -20,12 +19,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const empresa_id = searchParams.get('empresa_id')
+    const activo = searchParams.get('activo')
     const search = searchParams.get('search')
 
     const where: any = {
       es_cliente: true // Solo entidades que son clientes
     }
+
+    if (activo !== null) where.activo = activo === 'true'
 
     if (search) {
       where.OR = [
@@ -34,16 +35,11 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    // Construir query con filtro de empresa si se especifica
-    let clientesQuery: any = {
+    const clientes = await prisma.entidad.findMany({
       where,
+      orderBy: { nombre: 'asc' },
       include: {
         entidades_empresas: {
-          where: {
-            tipo_relacion: 'cliente',
-            activo: true,
-            ...(empresa_id && { empresa_id: parseInt(empresa_id) })
-          },
           include: {
             empresa: {
               select: { id: true, nombre: true }
@@ -52,28 +48,13 @@ export async function GET(request: NextRequest) {
         },
         _count: {
           select: {
-            movimientos_entidad: true,
-            saldos: true
+            movimientos_entidad: true
           }
         }
-      },
-      orderBy: { nombre: 'asc' }
-    }
-
-    // Si filtran por empresa, añadir filtro en WHERE
-    if (empresa_id) {
-      where.entidades_empresas = {
-        some: {
-          empresa_id: parseInt(empresa_id),
-          tipo_relacion: 'cliente',
-          activo: true
-        }
       }
-    }
+    })
 
-    const clientes = await prisma.entidad.findMany(clientesQuery)
-
-    // Formatear respuesta para compatibilidad
+    // Formatear respuesta para compatibilidad con frontend existente
     const clientesFormateados = clientes.map(cliente => ({
       id: cliente.id,
       nombre: cliente.nombre,
@@ -81,13 +62,12 @@ export async function GET(request: NextRequest) {
       activo: cliente.activo,
       created_at: cliente.created_at,
       empresas: cliente.entidades_empresas.map(rel => ({
-        empresa_id: rel.empresa_id,
+        empresa_id: rel.empresa.id,
         empresa_nombre: rel.empresa.nombre,
-        activo: rel.activo
+        tipo_relacion: rel.tipo_relacion
       })),
-      _count: {
-        movimientos: cliente._count.movimientos_entidad,
-        saldos: cliente._count.saldos
+      contadores: {
+        movimientos_como_cliente: cliente._count.movimientos_entidad
       }
     }))
 
@@ -112,18 +92,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createClienteSchema.parse(body)
 
-    // Verificar que la empresa existe y está activa
-    const empresa = await prisma.empresa.findUnique({
-      where: { id: validatedData.empresa_id }
-    })
-
-    if (!empresa || !empresa.activa) {
-      return NextResponse.json(
-        { error: 'Empresa no encontrada o inactiva' },
-        { status: 400 }
-      )
-    }
-
     // Verificar que no exista un cliente con el mismo nombre
     const clienteExistente = await prisma.entidad.findFirst({
       where: {
@@ -140,49 +108,44 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Crear cliente en transacción
-    const result = await prisma.$transaction(async (tx) => {
-      // Crear entidad cliente
-      const nuevoCliente = await tx.entidad.create({
+    // Usar transacción para crear cliente y asignarlo a todas las empresas activas
+    const resultado = await prisma.$transaction(async (tx) => {
+      // Crear cliente como entidad
+      const cliente = await tx.entidad.create({
         data: {
           nombre: validatedData.nombre,
           telefono: validatedData.telefono,
-          es_cliente: true,
+          activo: validatedData.activo,
           es_empleado: false,
-          es_proveedor: false,
-          activo: true
+          es_cliente: true,
+          es_proveedor: false
         }
       })
 
-      // Crear relación empresa-cliente
-      await tx.entidadEmpresa.create({
-        data: {
-          entidad_id: nuevoCliente.id,
-          empresa_id: validatedData.empresa_id,
-          tipo_relacion: 'cliente',
-          activo: true
-        }
+      // Obtener todas las empresas activas y asignar el cliente a todas
+      const empresasActivas = await tx.empresa.findMany({
+        where: { activa: true },
+        select: { id: true }
       })
 
-      // Crear saldo inicial si es mayor a 0
-      if (validatedData.saldo_inicial > 0) {
-        await tx.saldo.create({
-          data: {
-            entidad_id: nuevoCliente.id,
-            empresa_id: validatedData.empresa_id,
-            tipo_saldo: 'cuenta_cobrar',
-            saldo_inicial: validatedData.saldo_inicial,
-            saldo_actual: validatedData.saldo_inicial
-          }
+      // Crear relaciones con TODAS las empresas activas
+      if (empresasActivas.length > 0) {
+        await tx.entidadEmpresa.createMany({
+          data: empresasActivas.map(empresa => ({
+            entidad_id: cliente.id,
+            empresa_id: empresa.id,
+            tipo_relacion: 'cliente',
+            activo: true
+          }))
         })
       }
 
-      return nuevoCliente
+      return cliente
     })
 
-    // Obtener cliente completo para respuesta
+    // Obtener cliente completo con empresas para respuesta
     const clienteCompleto = await prisma.entidad.findUnique({
-      where: { id: result.id },
+      where: { id: resultado.id },
       include: {
         entidades_empresas: {
           include: {
@@ -196,13 +159,16 @@ export async function POST(request: NextRequest) {
 
     // Formatear respuesta para compatibilidad
     const clienteFormateado = {
-      id: clienteCompleto!.id,
-      nombre: clienteCompleto!.nombre,
-      telefono: clienteCompleto!.telefono,
-      activo: clienteCompleto!.activo,
-      created_at: clienteCompleto!.created_at,
-      empresa: clienteCompleto!.entidades_empresas[0]?.empresa,
-      saldo_inicial: validatedData.saldo_inicial
+      id: resultado.id,
+      nombre: resultado.nombre,
+      telefono: resultado.telefono,
+      activo: resultado.activo,
+      created_at: resultado.created_at,
+      empresas: clienteCompleto?.entidades_empresas.map(rel => ({
+        empresa_id: rel.empresa.id,
+        empresa_nombre: rel.empresa.nombre,
+        tipo_relacion: rel.tipo_relacion
+      })) || []
     }
 
     return NextResponse.json({ cliente: clienteFormateado }, { status: 201 })
