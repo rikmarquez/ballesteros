@@ -36,8 +36,7 @@ export async function GET(request: NextRequest) {
         _count: {
           select: {
             subcategorias: true,
-            egresos_turno: true,
-            cuentas_pagar: true
+            movimientos: true
           }
         }
       },

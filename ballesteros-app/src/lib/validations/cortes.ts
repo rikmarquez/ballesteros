@@ -49,6 +49,7 @@ export const actualizarCorteSchema = z.object({
   prestamo: z.number().min(0, 'Debe ser mayor o igual a 0').optional(),
   cortesia: z.number().min(0, 'Debe ser mayor o igual a 0').optional(),
   otros_retiros: z.number().min(0, 'Debe ser mayor o igual a 0').optional(),
+  tags: z.string().optional(),
   estado: z.enum(['activo', 'cerrado', 'eliminado']).optional(),
 })
 
@@ -69,29 +70,48 @@ export type FiltrosCorteData = z.infer<typeof filtrosCorteSchema>
 
 // Helper para calcular campos automáticamente
 export const calcularCamposCorte = (data: CrearCorteData) => {
-  const venta_tarjeta = data.venta_credito_tarjeta + data.venta_debito_tarjeta
+  // CONVERTIR TODOS LOS CAMPOS A NUMBER PARA EVITAR CONCATENACIÓN DE STRINGS
+  const venta_neta = Number(data.venta_neta || 0)
+  const venta_efectivo = Number(data.venta_efectivo || 0)
+  const venta_credito = Number(data.venta_credito || 0)
+  const venta_plataforma = Number(data.venta_plataforma || 0)
+  const cobranza = Number(data.cobranza || 0)
+  const venta_credito_tarjeta = Number(data.venta_credito_tarjeta || 0)
+  const venta_debito_tarjeta = Number(data.venta_debito_tarjeta || 0)
+  const venta_transferencia = Number(data.venta_transferencia || 0)
+  const retiro_parcial = Number(data.retiro_parcial || 0)
+  const gasto = Number(data.gasto || 0)
+  const compra = Number(data.compra || 0)
+  const prestamo = Number(data.prestamo || 0)
+  const cortesia = Number(data.cortesia || 0)
+  const otros_retiros = Number(data.otros_retiros || 0)
 
-  // INGRESOS TOTALES (todas las formas de venta + cobranza, SIN incluir efectivo reportado)
-  const total_ingresos = data.venta_credito + data.venta_plataforma +
-                        venta_tarjeta + data.venta_transferencia + data.cobranza + data.cortesia
+  const venta_tarjeta = venta_credito_tarjeta + venta_debito_tarjeta
+
+  // VENTAS SIN EFECTIVO (formas de venta que NO generan efectivo físico en caja)
+  const total_ingresos = venta_credito + venta_plataforma +
+                        venta_tarjeta + venta_transferencia + cortesia
 
   // EGRESOS REALES (que reducen efectivo físico)
-  const total_egresos = data.gasto + data.compra + data.prestamo +
-                       data.retiro_parcial + data.otros_retiros
+  const total_egresos = gasto + compra + prestamo +
+                       retiro_parcial + otros_retiros
 
   // EFECTIVO ESPERADO = Venta Neta - (Ventas sin efectivo) - (Egresos reales) + Cobranza
-  const ventas_sin_efectivo = venta_tarjeta + data.venta_transferencia +
-                             data.venta_credito + data.venta_plataforma + data.cortesia
+  const ventas_sin_efectivo = venta_tarjeta + venta_transferencia +
+                             venta_credito + venta_plataforma + cortesia
 
-  const efectivo_esperado = data.venta_neta - ventas_sin_efectivo - total_egresos + data.cobranza
+  const efectivo_esperado = venta_neta - ventas_sin_efectivo - total_egresos + cobranza
 
-  const diferencia = data.venta_efectivo - efectivo_esperado
+  const diferencia = venta_efectivo - efectivo_esperado
 
   // CÁLCULO INDIRECTO: Venta en Efectivo = Efectivo en Caja + Egresos Reales - Cobranza
-  const venta_efectivo_calculada = data.venta_efectivo + total_egresos - data.cobranza
+  const venta_efectivo_calculada = venta_efectivo + total_egresos - cobranza
 
-  // INGRESO TOTAL REGISTRADO = Venta en Efectivo Calculada + Ventas sin Efectivo + Cobranza
-  const ingreso_total_registrado = venta_efectivo_calculada + total_ingresos
+  // VENTA TOTAL REGISTRADA = Venta en Efectivo Calculada + Ventas sin Efectivo (SIN cobranza)
+  const venta_total_registrada = venta_efectivo_calculada + total_ingresos
+
+  // INGRESO TOTAL REGISTRADO = Venta Total Registrada + Cobranza
+  const ingreso_total_registrado = venta_total_registrada + cobranza
 
   return {
     venta_tarjeta,
@@ -100,6 +120,7 @@ export const calcularCamposCorte = (data: CrearCorteData) => {
     efectivo_esperado,
     diferencia,
     venta_efectivo_calculada,
+    venta_total_registrada,
     ingreso_total_registrado,
     adeudo_generado: diferencia < -50 // Tolerancia de $50
   }

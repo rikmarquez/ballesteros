@@ -122,7 +122,23 @@ export default function NuevoCorteePage() {
       const response = await fetch('/api/cortes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(corteData)
+        body: JSON.stringify({
+          ...corteData,
+          venta_neta: Number(corteData.venta_neta || 0),
+          venta_efectivo: Number(corteData.venta_efectivo || 0),
+          venta_credito: Number(corteData.venta_credito || 0),
+          venta_plataforma: Number(corteData.venta_plataforma || 0),
+          cobranza: Number(corteData.cobranza || 0),
+          venta_credito_tarjeta: Number(corteData.venta_credito_tarjeta || 0),
+          venta_debito_tarjeta: Number(corteData.venta_debito_tarjeta || 0),
+          venta_transferencia: Number(corteData.venta_transferencia || 0),
+          retiro_parcial: Number(corteData.retiro_parcial || 0),
+          gasto: Number(corteData.gasto || 0),
+          compra: Number(corteData.compra || 0),
+          prestamo: Number(corteData.prestamo || 0),
+          cortesia: Number(corteData.cortesia || 0),
+          otros_retiros: Number(corteData.otros_retiros || 0)
+        })
       })
 
       if (response.ok) {
@@ -157,8 +173,10 @@ export default function NuevoCorteePage() {
         </div>
       </div>
 
+      {/* NUEVO LAYOUT MEJORADO PARA UX */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Columna 1: Información General */}
+
+        {/* COLUMNA 1: INFORMACIÓN GENERAL + VENTA NETA + EFECTIVO */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -250,32 +268,21 @@ export default function NuevoCorteePage() {
                   className="text-lg font-medium"
                 />
               </div>
-
-              {corteData.venta_neta > 0 && (
-                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-xl font-bold text-blue-600">
-                    ${corteData.venta_neta.toFixed(2)}
-                  </p>
-                  <p className="text-sm text-blue-700">Base para cálculos</p>
-                </div>
-              )}
             </CardContent>
           </Card>
-        </div>
 
-        {/* Columna 2: Efectivo Reportado */}
-        <div className="space-y-6">
+          {/* Efectivo en Caja */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <DollarSign className="h-5 w-5 text-green-600" />
-                Efectivo Reportado por Cajera
+                Efectivo en Caja
               </CardTitle>
-              <CardDescription>Efectivo físico contado en caja al final del turno</CardDescription>
+              <CardDescription>Efectivo físico contado por la cajera</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <div>
-                <Label htmlFor="venta_efectivo">Efectivo en Caja</Label>
+                <Label htmlFor="venta_efectivo">Efectivo Contado</Label>
                 <Input
                   id="venta_efectivo"
                   type="number"
@@ -284,49 +291,74 @@ export default function NuevoCorteePage() {
                   onChange={(e) => handleInputChange('venta_efectivo', parseFloat(e.target.value) || 0)}
                   className="text-lg font-medium"
                 />
-                <p className="text-xs text-blue-600 mt-1">💵 Total contado físicamente por la cajera</p>
-              </div>
-
-              {corteData.venta_efectivo > 0 && (
-                <div className="mt-4 p-3 bg-green-50 rounded-lg">
-                  <p className="text-xl font-bold text-green-600">
-                    ${corteData.venta_efectivo.toFixed(2)}
-                  </p>
-                  <p className="text-sm text-green-700">Efectivo reportado</p>
-                </div>
-              )}
-
-              {/* Cálculo indirecto de venta en efectivo */}
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg border">
-                <h4 className="font-medium text-blue-800 mb-2">Venta en Efectivo (Calculada)</h4>
-                <p className="text-lg font-bold text-blue-600">
-                  ${camposCalculados.venta_efectivo_calculada.toFixed(2)}
-                </p>
-                <p className="text-xs text-blue-700 mt-1">
-                  = Efectivo en Caja + Egresos - Cobranza
-                </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  = ${corteData.venta_efectivo.toFixed(2)} + ${camposCalculados.total_egresos.toFixed(2)} - ${corteData.cobranza.toFixed(2)}
-                </p>
+                <p className="text-xs text-blue-600 mt-1">💵 Total contado físicamente</p>
               </div>
             </CardContent>
           </Card>
 
+          {/* Campos Calculados */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Calculator className="h-5 w-5 text-blue-600" />
+                Campos Calculados
+              </CardTitle>
+              <CardDescription>Cálculos automáticos basados en los datos capturados</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+
+              {/* Venta en Efectivo Calculada */}
+              <div className="p-3 bg-green-50 rounded-lg border">
+                <h4 className="font-medium text-green-800 mb-2">Venta en Efectivo Calculada</h4>
+                <p className="text-xl font-bold text-green-600">
+                  ${camposCalculados.venta_efectivo_calculada.toFixed(2)}
+                </p>
+                <p className="text-xs text-green-700 mt-1">
+                  Efectivo + Egresos - Cobranza
+                </p>
+              </div>
+
+              {/* Total Venta sin Efectivo */}
+              <div className="p-3 bg-blue-50 rounded-lg border">
+                <h4 className="font-medium text-blue-800 mb-2">Total Venta sin Efectivo</h4>
+                <p className="text-xl font-bold text-blue-600">
+                  ${camposCalculados.total_ingresos.toFixed(2)}
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  Crédito + Plataformas + Tarjetas + Transferencias + Cortesías
+                </p>
+              </div>
+
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* COLUMNA 2: TODOS LOS INGRESOS AGRUPADOS */}
+        <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-blue-600" />
-                Formas de Venta (sin efectivo)
+                Ingresos
               </CardTitle>
-              <CardDescription>Ventas que NO generan efectivo físico en caja</CardDescription>
+              <CardDescription>Todas las formas de ingreso de la venta</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
 
-              {/* Separador visual para formas sin efectivo */}
-              <div className="border-t pt-3">
-                <h4 className="font-medium text-gray-700 mb-3">Formas sin efectivo físico</h4>
+              {/* Cobranza */}
+              <div>
+                <Label htmlFor="cobranza">Cobranza</Label>
+                <Input
+                  id="cobranza"
+                  type="number"
+                  step="0.01"
+                  value={corteData.cobranza}
+                  onChange={(e) => handleInputChange('cobranza', parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-green-600 mt-1">✅ Aumenta efectivo físico</p>
               </div>
 
+              {/* Venta a Crédito */}
               <div>
                 <Label htmlFor="venta_credito">Venta a Crédito</Label>
                 <Input
@@ -336,9 +368,10 @@ export default function NuevoCorteePage() {
                   value={corteData.venta_credito}
                   onChange={(e) => handleInputChange('venta_credito', parseFloat(e.target.value) || 0)}
                 />
-                <p className="text-xs text-gray-500 mt-1">Ventas a crédito (sin efectivo)</p>
+                <p className="text-xs text-gray-500 mt-1">Sin efectivo físico</p>
               </div>
 
+              {/* Venta Plataformas */}
               <div>
                 <Label htmlFor="venta_plataforma">Venta Plataformas</Label>
                 <Input
@@ -348,16 +381,11 @@ export default function NuevoCorteePage() {
                   value={corteData.venta_plataforma}
                   onChange={(e) => handleInputChange('venta_plataforma', parseFloat(e.target.value) || 0)}
                 />
-                <p className="text-xs text-gray-500 mt-1">Uber Eats, Rappi, etc. (sin efectivo)</p>
+                <p className="text-xs text-gray-500 mt-1">Uber Eats, Rappi, etc.</p>
               </div>
 
-              {/* Tarjetas separadas */}
-              <div className="space-y-3 p-3 border rounded-lg bg-blue-50">
-                <h4 className="font-medium flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  Tarjetas (separadas)
-                </h4>
-
+              {/* Tarjetas agrupadas pero compactas */}
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <Label htmlFor="venta_credito_tarjeta">Tarjetas de Crédito</Label>
                   <Input
@@ -381,12 +409,9 @@ export default function NuevoCorteePage() {
                   />
                   <p className="text-xs text-gray-500 mt-1">Sin efectivo físico</p>
                 </div>
-
-                <div className="text-sm text-blue-700 font-medium">
-                  Total Tarjetas: ${camposCalculados.venta_tarjeta.toFixed(2)}
-                </div>
               </div>
 
+              {/* Transferencias */}
               <div>
                 <Label htmlFor="venta_transferencia">Transferencias</Label>
                 <Input
@@ -399,6 +424,7 @@ export default function NuevoCorteePage() {
                 <p className="text-xs text-gray-500 mt-1">Sin efectivo físico</p>
               </div>
 
+              {/* Cortesías */}
               <div>
                 <Label htmlFor="cortesia">Cortesías</Label>
                 <Input
@@ -408,42 +434,22 @@ export default function NuevoCorteePage() {
                   value={corteData.cortesia}
                   onChange={(e) => handleInputChange('cortesia', parseFloat(e.target.value) || 0)}
                 />
-                <p className="text-xs text-gray-500 mt-1">Pagadas por la empresa (sin efectivo)</p>
+                <p className="text-xs text-gray-500 mt-1">Pagadas por la empresa</p>
               </div>
 
-              <div>
-                <Label htmlFor="cobranza">Cobranza</Label>
-                <Input
-                  id="cobranza"
-                  type="number"
-                  step="0.01"
-                  value={corteData.cobranza}
-                  onChange={(e) => handleInputChange('cobranza', parseFloat(e.target.value) || 0)}
-                />
-                <p className="text-xs text-green-600 mt-1">✅ Aumenta efectivo físico esperado</p>
-              </div>
-
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <p className="font-medium text-blue-800">
-                  Total Ventas sin Efectivo: ${camposCalculados.total_ingresos.toFixed(2)}
-                </p>
-                <p className="text-xs text-blue-700 mt-1">
-                  Estas ventas no aumentan el efectivo físico de caja
-                </p>
-              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Columna 3: Egresos Reales */}
+        {/* COLUMNA 3: EGRESOS */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <TrendingDown className="h-5 w-5 text-red-600" />
-                Egresos Reales
+                Egresos
               </CardTitle>
-              <CardDescription>Salidas que REDUCEN efectivo físico de caja</CardDescription>
+              <CardDescription>Salidas que reducen efectivo físico de caja</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -508,12 +514,24 @@ export default function NuevoCorteePage() {
                 <p className="text-xs text-red-600 mt-1">❌ Reduce efectivo físico</p>
               </div>
 
-              <div className="p-3 bg-red-50 rounded-lg">
-                <p className="font-medium text-red-800">
-                  Total Egresos Reales: ${camposCalculados.total_egresos.toFixed(2)}
+            </CardContent>
+          </Card>
+
+          {/* Total de Egresos */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Calculator className="h-5 w-5 text-red-600" />
+                Total de Egresos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="p-3 bg-red-50 rounded-lg border">
+                <p className="text-xl font-bold text-red-600">
+                  ${Number(camposCalculados.total_egresos || 0).toFixed(2)}
                 </p>
                 <p className="text-xs text-red-700 mt-1">
-                  Solo gastos que retiran efectivo de caja
+                  Suma de todos los egresos
                 </p>
               </div>
             </CardContent>
@@ -521,124 +539,100 @@ export default function NuevoCorteePage() {
         </div>
       </div>
 
-      {/* Panel de Información y Validación */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calculator className="h-5 w-5" />
-            Información y Validación del Corte
-          </CardTitle>
-          <CardDescription>Métricas clave para validar la consistencia de los datos capturados</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      {/* FRANJA DE TOTALES PRINCIPALES */}
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Venta Total Registrada */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Venta Total Registrada
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-purple-600">
+              ${camposCalculados.venta_total_registrada.toFixed(2)}
+            </p>
+            <p className="text-xs text-purple-700 mt-1">
+              Efectivo Calculada + Ventas sin Efectivo
+            </p>
+          </CardContent>
+        </Card>
 
-            {/* Columna 1: Ventas e Ingresos */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-800 border-b pb-2">Ventas e Ingresos</h3>
+        {/* Ingreso Total Registrado */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Ingreso Total Registrado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-blue-600">
+              ${camposCalculados.ingreso_total_registrado.toFixed(2)}
+            </p>
+            <p className="text-xs text-blue-700 mt-1">
+              Total de ingresos registrados
+            </p>
+          </CardContent>
+        </Card>
 
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-medium text-blue-800">Venta Total Registrada</h4>
-                <p className="text-2xl font-bold text-blue-600">
-                  ${corteData.venta_neta.toFixed(2)}
-                </p>
-                <p className="text-sm text-blue-700">Desde el POS</p>
-              </div>
+        {/* Efectivo Esperado */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Calculator className="h-4 w-4" />
+              Efectivo Esperado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-orange-600">
+              ${camposCalculados.efectivo_esperado.toFixed(2)}
+            </p>
+            <p className="text-xs text-orange-700 mt-1">
+              Efectivo que debería estar en caja
+            </p>
+          </CardContent>
+        </Card>
 
-              <div className="p-4 bg-teal-50 rounded-lg">
-                <h4 className="font-medium text-teal-800">Ingreso Total Registrado</h4>
-                <p className="text-2xl font-bold text-teal-600">
-                  ${camposCalculados.ingreso_total_registrado.toFixed(2)}
-                </p>
-                <p className="text-sm text-teal-700">Efectivo calculado + Ventas sin efectivo + Cobranza</p>
-              </div>
-            </div>
+        {/* Diferencia */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Calculator className="h-4 w-4" />
+              Diferencia
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className={`text-2xl font-bold ${camposCalculados.diferencia >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ${camposCalculados.diferencia.toFixed(2)}
+            </p>
+            <p className="text-xs text-gray-700 mt-1">
+              Efectivo Real - Esperado
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
-            {/* Columna 2: Egresos y Efectivo */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-800 border-b pb-2">Egresos y Efectivo</h3>
 
-              <div className="p-4 bg-red-50 rounded-lg">
-                <h4 className="font-medium text-red-800">Egresos Reales</h4>
-                <p className="text-2xl font-bold text-red-600">
-                  ${camposCalculados.total_egresos.toFixed(2)}
-                </p>
-                <p className="text-sm text-red-700">Gastos que reducen efectivo de caja</p>
-              </div>
-
-              <div className="p-4 bg-purple-50 rounded-lg">
-                <h4 className="font-medium text-purple-800">Efectivo en Caja</h4>
-                <p className="text-2xl font-bold text-purple-600">
-                  ${corteData.venta_efectivo.toFixed(2)}
-                </p>
-                <p className="text-sm text-purple-700">Reportado por cajera</p>
-              </div>
-            </div>
-
-            {/* Columna 3: Validación */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-800 border-b pb-2">Validación</h3>
-
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-800">Efectivo Esperado</h4>
-                <p className="text-2xl font-bold text-gray-600">
-                  ${camposCalculados.efectivo_esperado.toFixed(2)}
-                </p>
-                <p className="text-sm text-gray-700">Según cálculos del sistema</p>
-              </div>
-
-              <div className={`p-4 rounded-lg ${
-                camposCalculados.diferencia >= 0 ? 'bg-green-50' : 'bg-amber-50'
-              }`}>
-                <h4 className={`font-medium ${
-                  camposCalculados.diferencia >= 0 ? 'text-green-800' : 'text-amber-800'
-                }`}>
-                  Diferencia
-                </h4>
-                <p className={`text-2xl font-bold ${
-                  camposCalculados.diferencia >= 0 ? 'text-green-600' : 'text-amber-600'
-                }`}>
-                  ${camposCalculados.diferencia.toFixed(2)}
-                </p>
-                <p className={`text-sm ${
-                  camposCalculados.diferencia >= 0 ? 'text-green-700' : 'text-amber-700'
-                }`}>
-                  {camposCalculados.diferencia >= 0 ? 'Sobrante' : 'Faltante'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Fórmulas de referencia */}
-          <div className="mt-6 p-4 bg-slate-50 rounded-lg border">
-            <h4 className="font-medium text-slate-800 mb-2">Fórmulas de Cálculo:</h4>
-            <div className="text-sm text-slate-600 space-y-1">
-              <p><strong>Efectivo Esperado:</strong> Venta Neta - (Ventas sin efectivo) - (Egresos reales) + Cobranza</p>
-              <p><strong>Diferencia:</strong> Efectivo en Caja - Efectivo Esperado</p>
-              <p><strong>Ingreso Total:</strong> Venta en Efectivo + Ventas sin Efectivo + Cobranza</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <Button
-                onClick={onSubmit}
-                disabled={isSubmitting || !corteData.empresa_id || !corteData.entidad_id || corteData.venta_neta === 0}
-                className="px-8"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  'Guardar Corte'
-                )}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* BOTÓN DE GUARDAR */}
+      <div className="mt-8 flex justify-end">
+        <Button
+          type="submit"
+          onClick={onSubmit}
+          disabled={isSubmitting}
+          className="min-w-[200px]"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creando...
+            </>
+          ) : (
+            'Crear Corte'
+          )}
+        </Button>
+      </div>
     </div>
   )
 }

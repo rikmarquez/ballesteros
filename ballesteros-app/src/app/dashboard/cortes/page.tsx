@@ -509,10 +509,10 @@ export default function CortesPage() {
                         </div>
                       </TableCell>
                       <TableCell className="font-medium">
-                        ${corte.venta_neta.toFixed(2)}
+                        ${Number(corte.venta_neta || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="font-medium">
-                        ${corte.efectivo_esperado.toFixed(2)}
+                        ${Number(corte.efectivo_esperado || 0).toFixed(2)}
                       </TableCell>
                       <TableCell>
                         {getBadgeDiferencia(corte.diferencia, corte.adeudo_generado)}

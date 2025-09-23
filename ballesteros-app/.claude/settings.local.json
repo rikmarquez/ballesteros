@@ -19,7 +19,11 @@
       "Bash(set PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=si)",
       "Bash(npx prisma:*)",
       "Bash(node:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(start http://localhost:3002/dashboard/cortes/1/editar)",
+      "Bash(start http://localhost:3003/dashboard/cortes)",
+      "Bash(start http://localhost:3004/dashboard/cortes)",
+      "Bash(start http://localhost:3004/dashboard/cortes/1/editar)"
     ],
     "deny": [],
     "ask": []

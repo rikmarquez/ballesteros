@@ -27,7 +27,7 @@ export async function GET(
         empresa: {
           select: { id: true, nombre: true }
         },
-        entidad: {
+        empleado: {
           select: { id: true, nombre: true, puesto: true }
         }
       }
@@ -182,17 +182,36 @@ export async function PUT(
       updateData.adeudo_generado = camposCalculados.adeudo_generado
     }
 
-    updateData.updated_at = new Date()
+    // Note: No necesitamos actualizar created_at, Prisma maneja esto automáticamente
+    console.log('updateData before Prisma:', JSON.stringify(updateData, null, 2))
+
+    // Filtrar campos no válidos para evitar errores de Prisma
+    const validFields = [
+      'venta_neta', 'venta_efectivo', 'venta_credito', 'venta_plataforma', 'cobranza',
+      'venta_credito_tarjeta', 'venta_debito_tarjeta', 'venta_transferencia',
+      'retiro_parcial', 'gasto', 'compra', 'prestamo', 'cortesia', 'otros_retiros',
+      'venta_tarjeta', 'total_ingresos', 'total_egresos', 'efectivo_esperado',
+      'diferencia', 'adeudo_generado', 'tags', 'estado'
+    ]
+
+    const filteredUpdateData = Object.keys(updateData)
+      .filter(key => validFields.includes(key))
+      .reduce((obj, key) => {
+        obj[key] = updateData[key]
+        return obj
+      }, {} as any)
+
+    console.log('Filtered updateData:', JSON.stringify(filteredUpdateData, null, 2))
 
     // Actualizar el corte
     const corteActualizado = await prisma.corte.update({
       where: { id: corteId },
-      data: updateData,
+      data: filteredUpdateData,
       include: {
         empresa: {
           select: { id: true, nombre: true }
         },
-        entidad: {
+        empleado: {
           select: { id: true, nombre: true, puesto: true }
         }
       }
@@ -244,8 +263,7 @@ export async function DELETE(
     const corteEliminado = await prisma.corte.update({
       where: { id: corteId },
       data: {
-        estado: 'eliminado',
-        updated_at: new Date()
+        estado: 'eliminado'
       }
     })
 
