@@ -1,6 +1,6 @@
 import NextAuth from "next-auth"
-import { PrismaAdapter } from "@auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
+import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -8,46 +8,48 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        username: { label: "Usuario", type: "text" },
+        password: { label: "Contraseña", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        if (!credentials?.username || !credentials?.password) {
           return null
         }
 
-        const entidad = await prisma.entidad.findFirst({
+        // Buscar usuario en la nueva tabla usuarios
+        const usuario = await prisma.usuario.findFirst({
           where: {
-            telefono: credentials.email as string,
-            activo: true,
-            es_empleado: true
+            username: credentials.username as string,
+            activo: true
           }
         })
 
-        if (!entidad) {
+        if (!usuario) {
           return null
         }
 
-        // Por simplicidad, usaremos el nombre como contraseña temporal
-        // En producción, deberías usar hashes de contraseñas reales
-        // Caso especial para Ricardo Marquez
-        let isPasswordValid = false
-        if (entidad.telefono === '3121069077') {
-          isPasswordValid = credentials.password === 'Acceso979971'
-        } else {
-          isPasswordValid = credentials.password === entidad.nombre.toLowerCase()
-        }
+        // Verificar contraseña hasheada
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password as string,
+          usuario.password_hash
+        )
 
         if (!isPasswordValid) {
           return null
         }
 
+        // Actualizar último acceso
+        await prisma.usuario.update({
+          where: { id: usuario.id },
+          data: { ultimo_acceso: new Date() }
+        })
+
         return {
-          id: entidad.id.toString(),
-          name: entidad.nombre,
-          email: entidad.telefono || "",
-          puesto: entidad.puesto || "",
-          puede_operar_caja: entidad.puede_operar_caja
+          id: usuario.id.toString(),
+          name: usuario.nombre_completo,
+          email: usuario.email || "",
+          username: usuario.username,
+          rol: usuario.rol
         }
       }
     })
@@ -55,16 +57,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.puesto = user.puesto
-        token.puede_operar_caja = user.puede_operar_caja
+        token.username = user.username
+        token.rol = user.rol
       }
       return token
     },
     async session({ session, token }) {
       if (token) {
         session.user.id = token.sub!
-        session.user.puesto = token.puesto as string
-        session.user.puede_operar_caja = token.puede_operar_caja as boolean
+        session.user.username = token.username as string
+        session.user.rol = token.rol as string
       }
       return session
     }
@@ -73,7 +75,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login"
   },
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 días
   },
-  adapter: PrismaAdapter(prisma)
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 días
+  },
+  secret: process.env.NEXTAUTH_SECRET || "temp-secret-for-dev"
 })

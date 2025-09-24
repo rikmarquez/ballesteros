@@ -12,7 +12,7 @@ export default function LoginPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -20,7 +20,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (status === 'loading') return // Aún cargando
 
-    if (session) {
+    if (status === 'authenticated' && session) {
       console.log('✅ Ya hay sesión, redirigiendo al dashboard')
       router.push('/')
     }
@@ -33,21 +33,50 @@ export default function LoginPage() {
 
     try {
       const result = await signIn('credentials', {
-        email,
+        username,
         password,
         redirect: false
       })
 
       if (result?.error) {
         setError('Credenciales incorrectas')
-      } else {
-        router.push('/')
+        console.log('❌ Error de login:', result.error)
+      } else if (result?.ok) {
+        console.log('✅ Login exitoso, redirigiendo...')
+
+        // Guardar datos del usuario temporalmente
+        const userData = {
+          username: username,
+          name: username === 'ricardo' ? 'Ricardo Marquez' :
+                username === 'contadora' ? 'Ana Rodríguez' :
+                username === 'dueno1' ? 'Dueño Principal' :
+                username === 'dueno2' ? 'Dueño Secundario' : username,
+          rol: username === 'ricardo' ? 'administrador' :
+               username === 'contadora' ? 'contadora' : 'dueno',
+          loginTime: new Date().toISOString()
+        }
+        localStorage.setItem('tempUser', JSON.stringify(userData))
+
+        // Usar window.location para forzar la redirección
+        window.location.href = '/'
       }
     } catch (error) {
       setError('Error de conexión')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Mostrar cargando si NextAuth aún está inicializando
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -62,13 +91,13 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Teléfono</Label>
+              <Label htmlFor="username">Usuario</Label>
               <Input
-                id="email"
+                id="username"
                 type="text"
-                placeholder="Ingresa tu teléfono"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Ingresa tu usuario"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
               />
             </div>
@@ -77,7 +106,7 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Ingresa tu nombre (minúscula)"
+                placeholder="Ingresa tu contraseña"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -97,7 +126,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <div className="mt-6 text-sm text-gray-600 text-center">
-            <p>Usa tu teléfono registrado y tu nombre en minúsculas</p>
+            <p>Usa tu usuario y contraseña asignados</p>
           </div>
         </CardContent>
       </Card>

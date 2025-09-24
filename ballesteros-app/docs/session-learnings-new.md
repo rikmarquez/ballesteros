@@ -9,27 +9,103 @@
 
 ### 🛠️ **Lecciones Críticas de Esta Sesión**
 
-#### **Lección 1: Importancia de Arquitectura Consistente de Búsquedas**
-**Problema encontrado:** Pérdida de foco al escribir en cajas de búsqueda
+#### **Lección 1: Problema Crítico de Pérdida de Foco en Inputs de Búsqueda**
+**Problema encontrado:** Al escribir en cajas de búsqueda, se perdía el foco después de cada carácter
 
 **Causa raíz identificada:**
 ```javascript
-// ❌ PROBLEMÁTICO - Doble filtrado
-const [searchTerm, setSearchTerm] = useState('') // Variable inconsistente
-const filtrados = datos.filter(...) // Filtrado frontend adicional
-useEffect(() => { cargarDatos() }, [searchTerm, filtros]) // Re-renders excesivos
+// ❌ PROBLEMÁTICO - setLoading + llamadas API causan re-renders
+const cargarDatos = async () => {
+  setLoading(true) // ← Esto causa re-render y pérdida de foco
+  // llamada API...
+  setLoading(false)
+}
 
-// ✅ SOLUCIÓN - Filtrado único
-const [search, setSearch] = useState('') // Variable consistente
-// Sin filtrado frontend adicional - solo API
-useEffect(() => { cargarDatos() }, [search, filtros]) // Renders optimizados
+useEffect(() => {
+  cargarDatos()
+}, [search, filtroActivo]) // API call en cada cambio de search
 ```
 
-**Aprendizaje:** Consistencia en patrones de código evita problemas de UX difíciles de diagnosticar.
+**Solución implementada - Frontend-Only Filtering:**
+```javascript
+// ✅ SOLUCIÓN - Sin re-renders durante búsqueda
+useEffect(() => {
+  cargarDatos()
+}, [filtroActivo]) // Solo filtros backend, NO search
+
+useEffect(() => {
+  cargarDatos()
+}, []) // Carga inicial
+
+// Filtrado 100% frontend - instantáneo y sin re-renders
+const datosFiltrados = datos.filter(item => {
+  return search === '' || item.nombre.toLowerCase().includes(search.toLowerCase())
+})
+```
+
+**Aprendizaje crítico:** `setLoading(true)` durante búsqueda = muerte de la UX. Filtrado frontend es superior: más rápido, sin pérdida de foco, sin parpadeo.
+
+#### **Lección 2: Error Simple pero Crítico en Render de Listas Filtradas**
+**Problema encontrado:** Filtrado funcionaba pero no se mostraban los resultados
+
+**Error específico identificado:**
+```javascript
+// ❌ ERROR - Renderizando lista original en lugar de filtrada
+{clientes.map((cliente) => (
+  <Card key={cliente.id}>...
+))}
+
+// ✅ CORRECCIÓN - Usar lista filtrada
+{clientesFiltrados.map((cliente) => (
+  <Card key={cliente.id}>...
+))}
+```
+
+**Archivos corregidos:**
+- `src/app/dashboard/clientes/page.tsx:183` - `clientes.map()` → `clientesFiltrados.map()`
+- `src/app/dashboard/categorias/page.tsx:218` - `categorias.map()` → `categoriasFiltradas.map()`
+
+**Aprendizaje:** Los errores más simples son los más difíciles de encontrar. Siempre verificar que el render usa la variable filtrada correcta.
 
 ---
 
-#### **Lección 2: Validación de Esquemas Durante Desarrollo**
+#### **Lección 3: Patrón Arquitectónico Exitoso - Frontend-Only Filtering**
+**Descubrimiento:** El filtrado frontend-only es superior al filtrado backend para búsquedas
+
+**Patrón implementado:**
+```javascript
+// ✅ PATRÓN EXITOSO - Separación de responsabilidades
+useEffect(() => {
+  cargarDatos()
+}, [filtroActivo]) // Backend filters (status, tipo, etc.)
+
+useEffect(() => {
+  cargarDatos()
+}, []) // Initial load
+
+// Frontend search - instant, no API calls
+const datosFiltrados = datos.filter(item => {
+  return search === '' ||
+         item.nombre.toLowerCase().includes(search.toLowerCase()) ||
+         (item.telefono && item.telefono.includes(search))
+})
+
+// Always use filtered array in render
+{datosFiltrados.map((item) => <Card key={item.id}>...)}
+```
+
+**Beneficios comprobados:**
+- ✅ Sin pérdida de foco
+- ✅ Búsqueda instantánea
+- ✅ Menos tráfico de red
+- ✅ UX superior (sin parpadeos)
+- ✅ Código más simple
+
+**Aplicación:** Implementado en Empleados, Proveedores, Clientes y Categorías con resultados excelentes.
+
+---
+
+#### **Lección 4: Validación de Esquemas Durante Desarrollo**
 **Problema encontrado:** APIs fallando por referencias a campos inexistentes (`direccion`, `egresos_turno`, `cuentas_pagar`)
 
 **Causa raíz:** Desalineación entre refactorización de BD y actualización de APIs
@@ -1356,3 +1432,224 @@ Los campos Decimal de Prisma se serializan como strings en JSON, requieren conve
 **Problema:** Cobranza incluida incorrectamente en "Total de Ventas no efectivo"
 **Prioridad:** ALTA - Corrección requerida para próxima sesión
 **Impacto:** Cálculos conceptualmente incorrectos
+
+---
+
+## Sesión: 2025-09-23 PM - Corrección Completa del Sistema de Autenticación
+
+### 🎯 **Objetivo de la Sesión: Reparar NextAuth y Flujo de Login**
+
+Esta sesión se enfocó en resolver los errores críticos de autenticación que impedían el login de usuarios y causaban redirecciones fallidas.
+
+---
+
+## 🔥 **Problema Crítico Resuelto: Jest Worker Errors**
+
+### **Error Central Identificado**
+**Problema:** "Jest worker encountered 2 child process exceptions, exceeding retry limit"
+**Impacto:**
+- NextAuth APIs devolviendo 500 Internal Server Error
+- Login completamente no funcional
+- Redirecciones a páginas de error en lugar de dashboard
+
+### **Causa Raíz Identificada**
+- Caché corrupto de Next.js en directorio `.next`
+- Múltiples procesos de desarrollo ejecutándose en puertos conflictivos
+- Compilación fallida causando errores en runtime
+
+### **Solución Implementada**
+```bash
+# 1. Limpiar caché corrupto
+rm -rf .next
+rm -rf node_modules/.cache
+
+# 2. Terminar procesos conflictivos en puertos ocupados
+# Puertos 3000, 3006 tenían procesos zombie
+
+# 3. Iniciar servidor limpio en puerto nuevo
+PORT=3007 npm run dev
+```
+
+**Resultado:** ✅ Servidor funcionando estable en http://localhost:3007
+
+---
+
+## 🔧 **Correcciones Técnicas Aplicadas**
+
+### **Corrección 1: Logout con Redirección Forzada**
+**Problema previo:** Logout se quedaba en dashboard con mensaje "No hay sesión detectada"
+
+**Antes:**
+```typescript
+signOut() // Sin redirección especificada
+```
+
+**Después:**
+```typescript
+signOut({ callbackUrl: '/login' }) // Redirección explícita
+```
+
+**Resultado:** ✅ Logout redirige correctamente a login
+
+### **Corrección 2: Seedeo de Usuarios Confirmado**
+**Acción:** Ejecutar `node scripts/seed-usuarios.js`
+**Resultado:** ✅ 4 usuarios creados con contraseñas hasheadas
+```
+┌─────────────┬─────────────────┬──────────────┬──────────────┐
+│ Usuario     │ Nombre          │ Rol          │ Contraseña   │
+├─────────────┼─────────────────┼──────────────┼──────────────┤
+│ ricardo     │ Ricardo Marquez │ administrador│ Acceso979971 │
+│ contadora   │ Ana Rodríguez   │ contadora    │ Contadora123 │
+│ dueno1      │ Dueño Principal │ dueno        │ Dueno123     │
+│ dueno2      │ Dueño Secundario│ dueno        │ Dueno456     │
+└─────────────┴─────────────────┴──────────────┴──────────────┘
+```
+
+### **Corrección 3: Verificación de APIs NextAuth**
+**Endpoints probados:**
+- ✅ `/api/auth/session` → Status 200 (null cuando sin sesión)
+- ✅ `/api/auth/providers` → Status 200 (configuración correcta)
+- ✅ `/api/auth/callback/credentials` → Status 302 (redirección exitosa)
+
+---
+
+## 📋 **Estado Final del Sistema de Autenticación**
+
+### **✅ Funcionalidades Operativas**
+1. **Login exitoso:** Usuarios pueden autenticarse con credenciales
+2. **Dashboard con información:** Muestra datos del usuario logueado
+3. **Logout funcional:** Redirige correctamente a login
+4. **Protección de rutas:** Middleware funcionando correctamente
+5. **Sesión persistente:** NextAuth JWT funcionando
+6. **Fallback localStorage:** Sistema híbrido para mayor robustez
+
+### **✅ Arquitectura de Autenticación Unificada**
+- **Tabla usuarios:** Separada completamente de entidades
+- **Roles definidos:** administrador, contadora, dueno
+- **Contraseñas seguras:** bcrypt hashing
+- **NextAuth v5:** Configuración correcta con JWT strategy
+- **Middleware de protección:** Rutas automáticamente protegidas
+
+---
+
+## 🔍 **Lecciones Aprendidas de Autenticación**
+
+### **1. Jest Worker Errors Son Críticos**
+Los errores de Jest worker en Next.js pueden corromper toda la funcionalidad de APIs, requieren limpieza completa de caché.
+
+### **2. Múltiples Puertos Causan Conflictos**
+Procesos zombie en puertos anteriores interfieren con nuevas instancias, requieren gestión cuidadosa.
+
+### **3. Redirecciones Explícitas Son Necesarias**
+NextAuth requiere especificar `callbackUrl` explícitamente para logout, no asume comportamiento por defecto.
+
+### **4. Arquitectura Híbrida Añade Robustez**
+Combinar NextAuth con localStorage fallback proporciona mejor experiencia cuando APIs fallan.
+
+### **5. Testing de APIs Independiente**
+Probar endpoints con curl/fetch independientemente del frontend ayuda a aislar problemas.
+
+---
+
+## 🚧 **Tareas Pendientes Identificadas**
+
+### **PRIORIDAD ALTA - Testing Continuado**
+1. **Limpieza de navegadores:** Chrome requiere limpiar localStorage/cookies
+2. **Pruebas de flujo completo:** Login → Dashboard → Modules → Logout
+3. **Validación de roles:** Verificar permisos según tipo de usuario
+4. **Testing de persistencia:** Recargas de página, sesiones largas
+
+### **PRIORIDAD MEDIA - Refinamientos**
+5. **Mensajes de error:** Mejorar feedback cuando login falla
+6. **Loading states:** Optimizar experiencia durante autenticación
+7. **Timeout handling:** Manejo de sesiones expiradas
+
+---
+
+## 📊 **Impacto de las Correcciones**
+
+### **Problemas Eliminados**
+- ❌ "Jest worker encountered 2 child process exceptions"
+- ❌ NextAuth APIs returning 500 errors
+- ❌ Login redirects to error pages
+- ❌ Logout quedándose en dashboard
+- ❌ Usuarios no seedeados en base de datos
+
+### **Funcionalidades Restauradas**
+- ✅ Sistema de login completamente funcional
+- ✅ Dashboard mostrando información de usuario
+- ✅ Logout con redirección correcta
+- ✅ Protección automática de rutas
+- ✅ Feedback visual de estado de sesión
+
+### **Estabilidad Mejorada**
+- ✅ Servidor estable sin errores de compilación
+- ✅ APIs NextAuth respondiendo consistentemente
+- ✅ Base de datos sincronizada con usuarios correctos
+- ✅ Caché limpio y compilación exitosa
+
+---
+
+## 🎯 **Próximos Pasos Recomendados**
+
+1. **Validación cross-browser:** Probar en Chrome después de limpiar datos
+2. **Testing de roles:** Verificar que permisos funcionan correctamente
+3. **Stress testing:** Múltiples logins/logouts para verificar estabilidad
+4. **Módulos post-login:** Continuar con testing de cortes y catálogos
+
+---
+
+---
+
+## 🚨 **ERROR CRÍTICO DETECTADO AL FINAL DE SESIÓN**
+
+### **Error Post-Logout en Página Login**
+**Tipo:** Runtime TypeError
+**Mensaje:** `__webpack_modules__[moduleId] is not a function`
+
+**Stack trace completo:**
+```
+__webpack_modules__[moduleId] is not a function
+    at __webpack_exec__ (.next\server\app\login\page.js:356:39)
+    at <unknown> (.next\server\app\login\page.js:357:322)
+    at <unknown> (.next\server\app\login\page.js:357:47)
+    at Object.<anonymous> (.next\server\app\login\page.js:360:3)
+```
+
+**Contexto del error:**
+- ✅ Logout funciona (redirige a login)
+- ❌ Al cargar página `/login` después de logout, webpack falla
+- **Versión:** Next.js 15.5.3 (Webpack)
+- **Servidor:** http://localhost:3007
+
+### **Análisis Inicial**
+**Posibles causas:**
+1. **Module bundling corruption:** Webpack no encuentra módulo referenciado
+2. **Hot reload conflict:** Compilación parcial/corrupta durante logout
+3. **Next.js 15 compatibility:** Issue específico con version actual
+4. **Caché residual:** Archivos .next parcialmente corruptos aún
+
+### **Impacto**
+- **Severidad:** ALTA
+- **Funcionalidad afectada:** Página de login post-logout
+- **Workaround temporal:** Recargar página manualmente
+- **Flujo roto:** Login → Dashboard → Logout → **ERROR**
+
+### **ACCIÓN REQUERIDA PRÓXIMA SESIÓN**
+**PRIORIDAD 1:** Investigar y corregir error webpack en página login
+
+**Pasos de diagnóstico sugeridos:**
+1. Verificar compilación de `/app/login/page.tsx`
+2. Revisar imports y dependencias en componente login
+3. Limpiar caché más agresivamente (`rm -rf .next node_modules/.cache`)
+4. Probar rebuild completo (`npm run build`)
+5. Investigar issues Next.js 15.5.3 + webpack
+
+**Estado de autenticación:** ⚠️ **Funcional con error post-logout**
+
+---
+
+**Sesión resultado:** ⚠️ **Sistema de Autenticación Parcialmente Funcional**
+**Estado actual:** 🟡 **Login/Dashboard OK, Error Post-Logout**
+**Servidor estable:** 🟢 **http://localhost:3007**
+**Próxima prioridad:** 🔥 **CRÍTICO: Corregir Error Webpack en Login**

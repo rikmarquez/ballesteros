@@ -41,17 +41,17 @@ export default function CategoriasPage() {
   const [categorias, setCategorias] = useState<CategoriaData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterActiva, setFilterActiva] = useState<string>('all')
-  const [filterTipo, setFilterTipo] = useState<string>('all')
+  const [filtroActivo, setFiltroActivo] = useState<string>('all')
+  const [filtroTipo, setFiltroTipo] = useState<string>('all')
 
   const cargarCategorias = async () => {
     try {
-      setLoading(true)
+      // setLoading(true) // Comentado para mejor UX
 
       const params = new URLSearchParams()
-      if (filterActiva !== 'all') params.append('activa', filterActiva)
-      if (filterTipo !== 'all') params.append('tipo', filterTipo)
-      if (search) params.append('search', search)
+      // if (search) params.set('search', search) // COMENTADO: solo filtrado frontend
+      if (filtroActivo !== 'all') params.set('activa', filtroActivo === 'activo' ? 'true' : 'false')
+      if (filtroTipo !== 'all') params.set('tipo', filtroTipo)
 
       const response = await fetch(`/api/categorias?${params}`)
 
@@ -71,9 +71,19 @@ export default function CategoriasPage() {
 
   useEffect(() => {
     cargarCategorias()
-  }, [search, filterActiva, filterTipo])
+  }, [filtroActivo, filtroTipo]) // Solo filtros, NO search
 
-  // No necesitamos filtrado adicional ya que se hace en el API
+  useEffect(() => {
+    cargarCategorias()
+  }, []) // Carga inicial
+
+  const categoriasFiltradas = categorias.filter(categoria => {
+    const matchesSearch = search === '' ||
+      categoria.nombre.toLowerCase().includes(search.toLowerCase()) ||
+      (categoria.tipo && categoria.tipo.toLowerCase().includes(search.toLowerCase()))
+
+    return matchesSearch
+  })
 
   if (loading) {
     return (
@@ -127,30 +137,30 @@ export default function CategoriasPage() {
                 <Input
                   placeholder="Buscar por nombre..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value))
+                  onChange={(e) => setSearch(e.target.value)}
                   className="pl-10"
                 />
               </div>
             </div>
             <div className="flex gap-2">
               <Button
-                variant={filterActiva === 'all' ? 'default' : 'outline'}
+                variant={filtroActivo === 'all' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setFilterActiva('all')}
+                onClick={() => setFiltroActivo('all')}
               >
                 Todas ({categorias.length})
               </Button>
               <Button
-                variant={filterActiva === 'true' ? 'default' : 'outline'}
+                variant={filtroActivo === 'true' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setFilterActiva('true')}
+                onClick={() => setFiltroActivo('true')}
               >
                 Activas ({categorias.filter(c => c.activa).length})
               </Button>
               <Button
-                variant={filterActiva === 'false' ? 'default' : 'outline'}
+                variant={filtroActivo === 'false' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setFilterActiva('false')}
+                onClick={() => setFiltroActivo('false')}
               >
                 Inactivas ({categorias.filter(c => !c.activa).length})
               </Button>
@@ -160,18 +170,18 @@ export default function CategoriasPage() {
           {/* Filtros por tipo */}
           <div className="flex flex-wrap gap-2 mt-4">
             <Button
-              variant={filterTipo === 'all' ? 'default' : 'outline'}
+              variant={filtroTipo === 'all' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setFilterTipo('all')}
+              onClick={() => setFiltroTipo('all')}
             >
               Todos los tipos
             </Button>
             {Object.entries(tipoLabels).map(([tipo, label]) => (
               <Button
                 key={tipo}
-                variant={filterTipo === tipo ? 'default' : 'outline'}
+                variant={filtroTipo === tipo ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setFilterTipo(tipo)}
+                onClick={() => setFiltroTipo(tipo)}
               >
                 {label} ({categorias.filter(c => c.tipo === tipo).length})
               </Button>
@@ -187,12 +197,12 @@ export default function CategoriasPage() {
             <div className="text-center py-8">
               <Tags className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500 mb-4">
-                {search || filterActiva !== 'all' || filterTipo !== 'all'
+                {search || filtroActivo !== 'all' || filtroTipo !== 'all'
                   ? 'No se encontraron categorías con los filtros aplicados'
                   : 'No hay categorías registradas'
                 }
               </p>
-              {!search && filterActiva === 'all' && filterTipo === 'all' && (
+              {!search && filtroActivo === 'all' && filtroTipo === 'all' && (
                 <Link href="/dashboard/categorias/nuevo">
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
@@ -205,7 +215,7 @@ export default function CategoriasPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {categorias.map((categoria) => (
+          {categoriasFiltradas.map((categoria) => (
             <Card key={categoria.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">

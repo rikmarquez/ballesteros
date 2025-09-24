@@ -29,15 +29,15 @@ export default function ClientesPage() {
   const [clientes, setClientes] = useState<ClienteData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterActivo, setFilterActivo] = useState<string>('all')
+  const [filtroActivo, setFiltroActivo] = useState<string>('all')
 
   const cargarClientes = async () => {
     try {
-      setLoading(true)
+      // setLoading(true) // Comentado para mejor UX
 
       const params = new URLSearchParams()
-      if (filterActivo !== 'all') params.append('activo', filterActivo)
-      if (search) params.append('search', search)
+      // if (search) params.set('search', search) // COMENTADO: solo filtrado frontend
+      if (filtroActivo !== 'all') params.set('activo', filtroActivo === 'activo' ? 'true' : 'false')
 
       const response = await fetch(`/api/clientes?${params}`)
 
@@ -57,9 +57,19 @@ export default function ClientesPage() {
 
   useEffect(() => {
     cargarClientes()
-  }, [search, filterActivo])
+  }, [filtroActivo]) // Solo filtros, NO search
 
-  // No necesitamos filtrado adicional ya que se hace en el API
+  useEffect(() => {
+    cargarClientes()
+  }, []) // Carga inicial
+
+  const clientesFiltrados = clientes.filter(cliente => {
+    const matchesSearch = search === '' ||
+      cliente.nombre.toLowerCase().includes(search.toLowerCase()) ||
+      (cliente.telefono && cliente.telefono.includes(search))
+
+    return matchesSearch
+  })
 
   if (loading) {
     return (
@@ -113,30 +123,30 @@ export default function ClientesPage() {
                 <Input
                   placeholder="Buscar por nombre o teléfono..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value))
+                  onChange={(e) => setSearch(e.target.value)}
                   className="pl-10"
                 />
               </div>
             </div>
             <div className="flex gap-2">
               <Button
-                variant={filterActivo === 'all' ? 'default' : 'outline'}
+                variant={filtroActivo === 'all' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setFilterActivo('all')}
+                onClick={() => setFiltroActivo('all')}
               >
                 Todos ({clientes.length})
               </Button>
               <Button
-                variant={filterActivo === 'true' ? 'default' : 'outline'}
+                variant={filtroActivo === 'true' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setFilterActivo('true')}
+                onClick={() => setFiltroActivo('true')}
               >
                 Activos ({clientes.filter(c => c.activo).length})
               </Button>
               <Button
-                variant={filterActivo === 'false' ? 'default' : 'outline'}
+                variant={filtroActivo === 'false' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setFilterActivo('false')}
+                onClick={() => setFiltroActivo('false')}
               >
                 Inactivos ({clientes.filter(c => !c.activo).length})
               </Button>
@@ -152,12 +162,12 @@ export default function ClientesPage() {
             <div className="text-center py-8">
               <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500 mb-4">
-                {search || filterActivo !== 'all'
+                {search || filtroActivo !== 'all'
                   ? 'No se encontraron clientes con los filtros aplicados'
                   : 'No hay clientes registrados'
                 }
               </p>
-              {!search && filterActivo === 'all' && (
+              {!search && filtroActivo === 'all' && (
                 <Link href="/dashboard/clientes/nuevo">
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
@@ -170,7 +180,7 @@ export default function ClientesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {clientes.map((cliente) => (
+          {clientesFiltrados.map((cliente) => (
             <Card key={cliente.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">

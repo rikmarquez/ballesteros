@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,10 +17,37 @@ import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 
 export default function HomePage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+  const [tempUser, setTempUser] = useState<any>(null)
+
+  // Cargar usuario temporal desde localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('tempUser')
+      if (savedUser) {
+        setTempUser(JSON.parse(savedUser))
+      }
+    }
+  }, [])
+
+  // Mostrar cargando si NextAuth aún está inicializando
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Usar sesión de NextAuth o fallback a localStorage
+  const currentUser = session?.user || tempUser
 
   return (
     <div className="container mx-auto p-6">
+
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
@@ -31,18 +59,41 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Botón de cerrar sesión */}
-          {session && (
+          {/* Información del usuario y botón de cerrar sesión */}
+          {currentUser && (
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <p className="text-sm text-gray-600">Bienvenido</p>
-                <p className="text-sm font-medium text-gray-900">{session.user.name}</p>
-                {session.user.puesto && (
-                  <p className="text-xs text-gray-500">{session.user.puesto}</p>
+                <p className="text-sm font-medium text-gray-900">{currentUser.name}</p>
+                <p className="text-xs text-gray-500">@{currentUser.username}</p>
+                {currentUser.rol && (
+                  <p className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full inline-block mt-1">
+                    {currentUser.rol === 'administrador' ? '👨‍💼 Administrador' :
+                     currentUser.rol === 'contadora' ? '💰 Contadora' :
+                     currentUser.rol === 'dueno' ? '👑 Dueño' : currentUser.rol}
+                  </p>
                 )}
               </div>
-              <Button variant="outline" onClick={() => signOut()}>
+              <Button variant="outline" onClick={() => {
+                // Limpiar usuario temporal y redirigir a login
+                localStorage.removeItem('tempUser')
+                if (session) {
+                  signOut({ callbackUrl: '/login' })
+                } else {
+                  window.location.href = '/login'
+                }
+              }}>
                 Cerrar Sesión
+              </Button>
+            </div>
+          )}
+
+          {/* Fallback si no hay sesión */}
+          {!currentUser && (
+            <div className="text-red-600">
+              <p>⚠️ No hay sesión detectada</p>
+              <Button variant="outline" onClick={() => window.location.href = '/login'}>
+                Ir a Login
               </Button>
             </div>
           )}

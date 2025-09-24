@@ -44,10 +44,10 @@ export default function EmpleadosPage() {
 
   const cargarEmpleados = async () => {
     try {
-      setLoading(true)
+      // setLoading(true) // Comentado para mejor UX
 
       const params = new URLSearchParams()
-      if (search) params.set('search', search)
+      // if (search) params.set('search', search) // COMENTADO: solo filtrado frontend
       if (filtroActivo !== 'all') params.set('activo', filtroActivo === 'activo' ? 'true' : 'false')
 
       const response = await fetch(`/api/empleados?${params}`)
@@ -67,7 +67,11 @@ export default function EmpleadosPage() {
 
   useEffect(() => {
     cargarEmpleados()
-  }, [search, filtroActivo])
+  }, [filtroActivo]) // Solo filtros, NO search
+
+  useEffect(() => {
+    cargarEmpleados()
+  }, []) // Carga inicial
 
   const handleEliminar = async (empleadoId: number, nombre: string) => {
     if (!confirm(`¿Estás seguro de que quieres desactivar a ${nombre}?`)) {

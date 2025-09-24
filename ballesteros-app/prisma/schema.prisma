@@ -7,6 +7,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Usuario {
+  id               Int       @id @default(autoincrement())
+  username         String    @unique @db.VarChar(50)
+  password_hash    String    @db.VarChar(255)
+  nombre_completo  String    @db.VarChar(255)
+  email            String?   @db.VarChar(255)
+  rol              String    @db.VarChar(20) // 'administrador', 'dueno', 'contadora'
+  activo           Boolean   @default(true)
+  ultimo_acceso    DateTime? @db.Timestamp(6)
+  created_at       DateTime  @default(now()) @db.Timestamp(6)
+  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamp(6)
+
+  @@index([username], map: "idx_usuarios_username")
+  @@index([rol], map: "idx_usuarios_rol")
+  @@map("usuarios")
+}
+
 model Empresa {
   id                 Int              @id @default(autoincrement())
   nombre             String           @db.VarChar(100)

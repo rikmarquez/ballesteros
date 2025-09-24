@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 
 export async function middleware(request: NextRequest) {
-  console.log('🔥 MIDDLEWARE EXECUTING:', request.nextUrl.pathname)
-
   const { pathname } = request.nextUrl
 
   // Permitir archivos estáticos y API de auth
@@ -15,17 +13,18 @@ export async function middleware(request: NextRequest) {
 
   // Obtener sesión
   const session = await auth()
-  console.log('🔍 Session in middleware:', session ? 'EXISTS' : 'NO SESSION')
+
+  // Rutas públicas (no requieren autenticación)
+  const publicRoutes = ['/login']
+  const isPublicRoute = publicRoutes.includes(pathname)
 
   // Si está en login y ya tiene sesión, redirigir al dashboard
   if (pathname === '/login' && session) {
-    console.log('🔀 Has session, redirecting to dashboard')
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // Si está en homepage y NO tiene sesión, redirigir a login
-  if (pathname === '/' && !session) {
-    console.log('🔀 No session, redirecting to login')
+  // Si está en una ruta protegida y NO tiene sesión, redirigir a login
+  if (!isPublicRoute && !session) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
