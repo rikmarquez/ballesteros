@@ -9,7 +9,7 @@ const updateEmpresaSchema = z.object({
   activa: z.boolean().optional()
 })
 
-// GET /api/empresas/[id] - Obtener empresa por ID
+// GET /api/empresas/[id] - Obtener empresa por ID (sin campo cuentas)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,9 +34,10 @@ export async function GET(
       include: {
         _count: {
           select: {
-            clientes: true,
-            proveedores: true,
-            cortes: true
+            entidades_empresas: true,
+            cortes: true,
+            movimientos: true,
+            saldos: true
           }
         }
       }

@@ -42,8 +42,7 @@ export async function GET(
         },
         _count: {
           select: {
-            egresos_turno: true,
-            cuentas_pagar: true
+            movimientos: true
           }
         }
       }
@@ -193,8 +192,7 @@ export async function DELETE(
       include: {
         _count: {
           select: {
-            egresos_turno: true,
-            cuentas_pagar: true
+            movimientos: true
           }
         }
       }
@@ -208,12 +206,11 @@ export async function DELETE(
     }
 
     // Verificar que no tenga registros asociados
-    if (subcategoria._count.egresos_turno > 0 || subcategoria._count.cuentas_pagar > 0) {
+    if (subcategoria._count.movimientos > 0) {
       return NextResponse.json(
         {
-          error: 'No se puede eliminar subcategoría con registros asociados',
-          egresos: subcategoria._count.egresos_turno,
-          cuentas_pagar: subcategoria._count.cuentas_pagar
+          error: 'No se puede eliminar subcategoría con movimientos asociados',
+          movimientos: subcategoria._count.movimientos
         },
         { status: 400 }
       )

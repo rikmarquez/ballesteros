@@ -61,7 +61,15 @@
       "Bash(\"taskkill\" \"/f\" \"/pid\" \"20956\")",
       "Bash(PORT=3008 npm run dev)",
       "Bash(PORT=3009 npm run dev)",
-      "Bash(PORT=3010 npm run dev)"
+      "Bash(PORT=3010 npm run dev)",
+      "Bash(start http://localhost:3000/dashboard/subcategorias)",
+      "Bash(start http://localhost:3000/dashboard/cuentas)",
+      "Bash(start http://localhost:3000/dashboard/cuentas/nueva)",
+      "Bash(cmd /c:*)",
+      "Bash(start http://localhost:3000/dashboard/empresas)",
+      "Bash(start http://localhost:3005/dashboard/empresas)",
+      "Bash(npm cache clean:*)",
+      "Bash(start http://localhost:3006/login)"
     ],
     "deny": [],
     "ask": []

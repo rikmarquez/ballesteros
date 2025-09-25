@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth'
 
 const prisma = new PrismaClient()
 
-// GET /api/subcategorias - Listar subcategorías con filtros
+// GET /api/cuentas - Listar cuentas con filtros
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
@@ -15,7 +15,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
 
     // Filtros disponibles
-    const categoria_id = searchParams.get('categoria_id')
+    const activa = searchParams.get('activa')
+    const empresa_id = searchParams.get('empresa_id')
+    const tipo_cuenta = searchParams.get('tipo_cuenta')
     const search = searchParams.get('search')
 
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -24,7 +26,8 @@ export async function GET(request: NextRequest) {
     // Construir filtros WHERE
     const where: any = {}
 
-    if (categoria_id) where.categoria_id = parseInt(categoria_id)
+    if (activa !== null) where.activa = activa === 'true'
+    if (tipo_cuenta) where.tipo_cuenta = tipo_cuenta
 
     // Filtro por búsqueda de texto
     if (search) {
@@ -34,15 +37,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const subcategorias = await prisma.subcategoriaGasto.findMany({
+    const cuentas = await prisma.cuenta.findMany({
       where,
-      include: {
-        categoria: {
-          select: { id: true, nombre: true, tipo: true }
-        }
-      },
       orderBy: [
-        { categoria_id: 'asc' },
+        { tipo_cuenta: 'asc' },
         { nombre: 'asc' }
       ],
       take: limit,
@@ -50,10 +48,10 @@ export async function GET(request: NextRequest) {
     })
 
     // Contar total para paginación
-    const total = await prisma.subcategoriaGasto.count({ where })
+    const total = await prisma.cuenta.count({ where })
 
     return NextResponse.json({
-      subcategorias,
+      cuentas,
       pagination: {
         total,
         limit,
@@ -63,7 +61,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Error al obtener subcategorías:', error)
+    console.error('Error al obtener cuentas:', error)
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

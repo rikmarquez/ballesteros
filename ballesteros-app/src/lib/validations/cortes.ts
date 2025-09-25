@@ -55,12 +55,12 @@ export const actualizarCorteSchema = z.object({
 
 // Esquema para filtros de búsqueda
 export const filtrosCorteSchema = z.object({
-  empresa_id: z.string().optional(),
-  entidad_id: z.string().optional(), // Cambiado de empleado_id a entidad_id
-  fecha: z.string().optional(),
-  estado: z.enum(['activo', 'cerrado', 'eliminado', 'all']).optional(),
-  limit: z.string().optional().transform((val) => val ? parseInt(val) : 50),
-  offset: z.string().optional().transform((val) => val ? parseInt(val) : 0),
+  empresa_id: z.string().nullable().optional(),
+  entidad_id: z.string().nullable().optional(), // Cambiado de empleado_id a entidad_id
+  fecha: z.string().nullable().optional(),
+  estado: z.enum(['activo', 'cerrado', 'eliminado', 'all']).nullable().optional(),
+  limit: z.string().nullable().optional().transform((val) => val ? parseInt(val) : 50),
+  offset: z.string().nullable().optional().transform((val) => val ? parseInt(val) : 0),
 })
 
 // Tipos TypeScript derivados de los esquemas

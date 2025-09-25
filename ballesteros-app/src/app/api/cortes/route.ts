@@ -13,37 +13,37 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const filtros = filtrosCorteSchema.parse({
-      empresa_id: searchParams.get('empresa_id'),
-      entidad_id: searchParams.get('entidad_id'),
-      fecha: searchParams.get('fecha'),
-      estado: searchParams.get('estado'),
-      limit: searchParams.get('limit'),
-      offset: searchParams.get('offset'),
-    })
+
+    // Obtener parámetros directamente sin validación Zod para filtros
+    const empresa_id = searchParams.get('empresa_id')
+    const entidad_id = searchParams.get('entidad_id')
+    const fecha = searchParams.get('fecha')
+    const estado = searchParams.get('estado')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = parseInt(searchParams.get('offset') || '0')
 
     const where: any = {}
 
-    if (filtros.empresa_id && filtros.empresa_id !== 'all') {
-      const empresaIdNum = parseInt(filtros.empresa_id)
+    if (empresa_id && empresa_id !== 'all') {
+      const empresaIdNum = parseInt(empresa_id)
       if (!isNaN(empresaIdNum)) {
         where.empresa_id = empresaIdNum
       }
     }
 
-    if (filtros.entidad_id && filtros.entidad_id !== 'all') {
-      const entidadIdNum = parseInt(filtros.entidad_id)
+    if (entidad_id && entidad_id !== 'all') {
+      const entidadIdNum = parseInt(entidad_id)
       if (!isNaN(entidadIdNum)) {
         where.entidad_id = entidadIdNum
       }
     }
 
-    if (filtros.fecha) {
-      where.fecha = new Date(filtros.fecha)
+    if (fecha) {
+      where.fecha = new Date(fecha)
     }
 
-    if (filtros.estado && filtros.estado !== 'all') {
-      where.estado = filtros.estado
+    if (estado && estado !== 'all') {
+      where.estado = estado
     }
 
     const cortes = await prisma.corte.findMany({
@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
         { fecha: 'desc' },
         { created_at: 'desc' }
       ],
-      take: filtros.limit || 50,
-      skip: filtros.offset || 0
+      take: limit,
+      skip: offset
     })
 
     const total = await prisma.corte.count({ where })
@@ -70,9 +70,9 @@ export async function GET(request: NextRequest) {
       cortes,
       pagination: {
         total,
-        limit: filtros.limit || 50,
-        offset: filtros.offset || 0,
-        hasMore: (filtros.offset || 0) + (filtros.limit || 50) < total
+        limit: limit,
+        offset: offset,
+        hasMore: offset + limit < total
       }
     })
 

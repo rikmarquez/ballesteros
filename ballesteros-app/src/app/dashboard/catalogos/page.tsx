@@ -10,7 +10,9 @@ import {
   Tags,
   ArrowLeft,
   Database,
-  Building2
+  Building2,
+  Layers,
+  DollarSign
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -68,7 +70,7 @@ const catalogos: CatalogoItem[] = [
     href: '/dashboard/subcategorias',
     color: 'text-pink-600',
     bgColor: 'bg-pink-100',
-    available: false
+    available: true
   },
   {
     title: 'Empresas',
@@ -77,7 +79,16 @@ const catalogos: CatalogoItem[] = [
     href: '/dashboard/empresas',
     color: 'text-indigo-600',
     bgColor: 'bg-indigo-100',
-    available: false
+    available: true
+  },
+  {
+    title: 'Cuentas',
+    description: 'Gestión de cuentas de efectivo, fiscales y bancarias',
+    icon: DollarSign,
+    href: '/dashboard/cuentas',
+    color: 'text-green-600',
+    bgColor: 'bg-green-100',
+    available: true
   }
 ]
 
@@ -165,9 +176,9 @@ export default function CatalogosPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
             <div className="p-4">
-              <div className="text-2xl font-bold text-blue-600 mb-1">4</div>
+              <div className="text-2xl font-bold text-blue-600 mb-1">7</div>
               <div className="text-sm text-gray-600">Módulos Activos</div>
-              <div className="text-xs text-gray-500 mt-1">Empleados, Proveedores, Clientes, Categorías</div>
+              <div className="text-xs text-gray-500 mt-1">Empleados, Proveedores, Clientes, Categorías, Subcategorías, Empresas, Cuentas</div>
             </div>
             <div className="p-4">
               <div className="text-2xl font-bold text-green-600 mb-1">3</div>
@@ -175,9 +186,9 @@ export default function CatalogosPage() {
               <div className="text-xs text-gray-500 mt-1">Principal, Express, Asadero</div>
             </div>
             <div className="p-4">
-              <div className="text-2xl font-bold text-purple-600 mb-1">2</div>
+              <div className="text-2xl font-bold text-purple-600 mb-1">0</div>
               <div className="text-sm text-gray-600">Módulos Planeados</div>
-              <div className="text-xs text-gray-500 mt-1">Subcategorías, Empresas</div>
+              <div className="text-xs text-gray-500 mt-1">Sistema de catálogos completo</div>
             </div>
           </div>
         </CardContent>

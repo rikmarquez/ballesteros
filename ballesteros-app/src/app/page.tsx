@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   BarChart3,
   Calculator,
@@ -10,15 +11,24 @@ import {
   TrendingUp,
   Users,
   DollarSign,
-  Clock,
-  Building2
+  Building2,
+  ChevronDown
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 
+interface EmpresaData {
+  id: number
+  nombre: string
+  activa: boolean
+}
+
 export default function HomePage() {
   const { data: session, status } = useSession()
   const [tempUser, setTempUser] = useState<any>(null)
+  const [empresas, setEmpresas] = useState<EmpresaData[]>([])
+  const [empresaActiva, setEmpresaActiva] = useState<number>(1) // Por defecto empresa 1
+  const [loadingEmpresas, setLoadingEmpresas] = useState(true)
 
   // Cargar usuario temporal desde localStorage
   useEffect(() => {
@@ -27,8 +37,41 @@ export default function HomePage() {
       if (savedUser) {
         setTempUser(JSON.parse(savedUser))
       }
+
+      // Cargar empresa activa guardada
+      const savedEmpresa = localStorage.getItem('empresaActiva')
+      if (savedEmpresa) {
+        setEmpresaActiva(parseInt(savedEmpresa))
+      }
     }
   }, [])
+
+  // Cargar empresas
+  const cargarEmpresas = async () => {
+    try {
+      setLoadingEmpresas(true)
+      const response = await fetch('/api/empresas?activa=true')
+      if (!response.ok) throw new Error('Error al cargar empresas')
+      const data = await response.json()
+      setEmpresas(data.empresas)
+    } catch (error) {
+      console.error('Error:', error)
+    } finally {
+      setLoadingEmpresas(false)
+    }
+  }
+
+  // Cargar empresas al montar el componente
+  useEffect(() => {
+    cargarEmpresas()
+  }, [])
+
+  // Cambiar empresa activa
+  const cambiarEmpresa = (nuevaEmpresaId: string) => {
+    const id = parseInt(nuevaEmpresaId)
+    setEmpresaActiva(id)
+    localStorage.setItem('empresaActiva', id.toString())
+  }
 
   // Mostrar cargando si NextAuth aún está inicializando
   if (status === 'loading') {
@@ -45,8 +88,61 @@ export default function HomePage() {
   // Usar sesión de NextAuth o fallback a localStorage
   const currentUser = session?.user || tempUser
 
+  // Obtener empresa actual
+  const empresaActualData = empresas.find(e => e.id === empresaActiva)
+
   return (
     <div className="container mx-auto p-6">
+
+      {/* Selector de Empresa - Prominente */}
+      <Card className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-blue-100">
+                  <Building2 className="h-8 w-8 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-blue-900">
+                    {loadingEmpresas ? (
+                      <div className="w-48 h-6 bg-blue-200 animate-pulse rounded"></div>
+                    ) : (
+                      empresaActualData?.nombre || 'Cargar empresa...'
+                    )}
+                  </h2>
+                  <p className="text-sm text-blue-700">Empresa activa actual</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="text-right text-sm text-blue-600">
+                <p>Cambiar empresa:</p>
+              </div>
+              <Select
+                value={empresaActiva.toString()}
+                onValueChange={cambiarEmpresa}
+                disabled={loadingEmpresas}
+              >
+                <SelectTrigger className="w-64 bg-white border-blue-300 hover:bg-blue-50">
+                  <SelectValue placeholder="Seleccionar empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {empresas.map((empresa) => (
+                    <SelectItem key={empresa.id} value={empresa.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        {empresa.nombre}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Header */}
       <div className="mb-8">
@@ -155,123 +251,51 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
-        {/* Reportes (Próximamente) */}
-        <Card className="opacity-60 cursor-not-allowed">
+        {/* Movimientos */}
+        <Card className="hover:shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer">
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-lg bg-purple-100">
-                <TrendingUp className="h-6 w-6 text-purple-600" />
+                <DollarSign className="h-6 w-6 text-purple-600" />
               </div>
               <div>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  Reportes
-                  <span className="text-xs px-2 py-1 bg-gray-200 text-gray-600 rounded-full">
-                    Próximamente
-                  </span>
-                </CardTitle>
-                <CardDescription>Análisis y tendencias</CardDescription>
+                <CardTitle className="text-lg">Movimientos</CardTitle>
+                <CardDescription>Registro detallado de transacciones</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600 mb-4">
-              Dashboard de métricas y reportes consolidados del grupo.
+              Gestión completa de movimientos financieros con trazabilidad y categorización.
             </p>
-            <Button className="w-full gap-2" disabled>
-              <TrendingUp className="h-4 w-4" />
-              Próximamente
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Información del sistema */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-        {/* Estado del sistema */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Estado del Sistema
-            </CardTitle>
-            <CardDescription>Información general y estado actual</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Módulo de Cortes</span>
-                <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
-                  ✅ Operativo
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Sistema de Catálogos</span>
-                <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
-                  ✅ Operativo
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Base de Datos</span>
-                <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
-                  ✅ Conectada
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">APIs Unificadas</span>
-                <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
-                  ✅ Funcionando
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Información de empresas */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Grupo Ballesteros
-            </CardTitle>
-            <CardDescription>Empresas del grupo</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
-                <span className="text-sm font-medium">Carnicería Principal</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium">Carnicería Express</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-2 bg-orange-500 rounded-full"></div>
-                <span className="text-sm font-medium">Asadero Ballesteros</span>
-              </div>
-              <div className="pt-2 border-t">
-                <p className="text-xs text-gray-600">
-                  Sistema unificado con acceso multi-empresa para todas las entidades.
-                </p>
-              </div>
-            </div>
+            <Link href="/dashboard/movimientos">
+              <Button className="w-full gap-2">
+                <DollarSign className="h-4 w-4" />
+                Gestionar Movimientos
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
 
       {/* Accesos rápidos */}
-      <Card className="mt-6">
+      <Card className="mt-8">
         <CardHeader>
           <CardTitle>Accesos Rápidos</CardTitle>
           <CardDescription>Enlaces directos a funciones principales</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Link href="/dashboard/cortes/nuevo">
               <Button variant="outline" className="w-full gap-2">
                 <Calculator className="h-4 w-4" />
                 Nuevo Corte
+              </Button>
+            </Link>
+            <Link href="/dashboard/movimientos/nuevo">
+              <Button variant="outline" className="w-full gap-2">
+                <DollarSign className="h-4 w-4" />
+                Nuevo Movimiento
               </Button>
             </Link>
             <Link href="/dashboard/empleados/nuevo">
