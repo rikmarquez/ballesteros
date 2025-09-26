@@ -9,7 +9,8 @@ const updateEmpleadoSchema = z.object({
   telefono: z.string().max(20).optional().nullable(),
   puesto: z.string().max(100).optional().nullable(),
   puede_operar_caja: z.boolean().optional(),
-  activo: z.boolean().optional()
+  activo: z.boolean().optional(),
+  saldo_inicial: z.number().min(0).optional().default(0)
 })
 
 // GET /api/empleados/[id] - Obtener empleado por ID
@@ -41,6 +42,13 @@ export async function GET(
         entidades_empresas: {
           include: {
             empresa: {
+              select: { id: true, nombre: true }
+            }
+          }
+        },
+        saldos: {
+          include: {
+            empresas: {
               select: { id: true, nombre: true }
             }
           }
@@ -91,6 +99,12 @@ export async function GET(
         empresa_nombre: rel.empresa.nombre,
         tipo_relacion: rel.tipo_relacion
       })),
+      saldos_por_empresa: empleado.saldos.map(saldo => ({
+        empresa_id: saldo.empresa_id,
+        empresa_nombre: saldo.empresas?.nombre || 'Sin empresa',
+        tipo_saldo: saldo.tipo_saldo,
+        saldo_actual: Number(saldo.saldo_actual)
+      })),
       contadores: {
         movimientos_como_empleado: empleado._count.movimientos_empleado,
         cortes: empleado._count.cortes
@@ -99,6 +113,7 @@ export async function GET(
 
     // Remover campos internos
     delete (empleadoFormateado as any).entidades_empresas
+    delete (empleadoFormateado as any).saldos
     delete (empleadoFormateado as any)._count
 
     return NextResponse.json({ empleado: empleadoFormateado })
@@ -167,10 +182,59 @@ export async function PUT(
       }
     }
 
-    // Actualizar empleado (las empresas se mantienen automáticamente)
-    const empleado = await prisma.entidad.update({
-      where: { id: empleadoId },
-      data: validatedData
+    // Actualizar empleado usando transacción
+    const empleado = await prisma.$transaction(async (tx) => {
+      // Actualizar datos básicos del empleado
+      const { saldo_inicial, ...empleadoData } = validatedData
+      const empleadoActualizado = await tx.entidad.update({
+        where: { id: empleadoId },
+        data: empleadoData
+      })
+
+      // Si se especifica saldo inicial, crear/ajustar saldos
+      if (saldo_inicial && saldo_inicial > 0) {
+        // Obtener todas las empresas activas
+        const empresasActivas = await tx.empresa.findMany({
+          where: { activa: true }
+        })
+
+        // Crear saldos para cada empresa activa si no existen
+        for (const empresa of empresasActivas) {
+          const saldoExistente = await tx.saldo.findFirst({
+            where: {
+              entidad_id: empleadoId,
+              empresa_id: empresa.id,
+              tipo_saldo: 'prestamo'
+            }
+          })
+
+          if (!saldoExistente) {
+            await tx.saldo.create({
+              data: {
+                entidad_id: empleadoId,
+                empresa_id: empresa.id,
+                tipo_saldo: 'prestamo',
+                saldo_inicial: saldo_inicial,
+                saldo_actual: saldo_inicial,
+                total_cargos: saldo_inicial,
+                total_abonos: 0
+              }
+            })
+          } else {
+            // Ajustar saldo existente
+            const nuevoCargo = saldo_inicial
+            await tx.saldo.update({
+              where: { id: saldoExistente.id },
+              data: {
+                total_cargos: saldoExistente.total_cargos + nuevoCargo,
+                saldo_actual: saldoExistente.saldo_actual + nuevoCargo
+              }
+            })
+          }
+        }
+      }
+
+      return empleadoActualizado
     })
 
     // Obtener empleado completo con relaciones para respuesta

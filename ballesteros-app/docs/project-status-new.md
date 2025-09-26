@@ -115,10 +115,10 @@ Cajeras → Efectivo Contadora → Cuenta Fiscal
    - `deposito_plataforma` → ingreso a cuenta fiscal
    - `comision_plataforma` → egreso de cuenta fiscal
 
-## 🎯 Estado Actual del Sistema (2025-09-24 - ACTUALIZADO)
+## 🎯 Estado Actual del Sistema (2025-09-26 - ACTUALIZADO)
 
-### **✅ SISTEMA COMPLETAMENTE FUNCIONAL**
-**Estado:** ✅ **TODOS LOS MÓDULOS DE CATÁLOGOS Y GESTIÓN IMPLEMENTADOS**
+### **✅ SISTEMA 95% FUNCIONAL - MÓDULO COBRANZAS COMPLETADO**
+**Estado:** ✅ **CATÁLOGOS + MOVIMIENTOS PRINCIPALES OPERATIVOS**
 
 ## **📊 SISTEMA DE CATÁLOGOS - 100% COMPLETADO**
 
@@ -216,11 +216,15 @@ Cajeras → Efectivo Contadora → Cuenta Fiscal
    - **No implementar todo de una vez** - solo lo que se va solicitando
    - Cada tipo nuevo requiere definición de campos y lógica específica
 
-**ESTADO ACTUAL:**
+**ESTADO ACTUAL (2025-09-26):**
 - ✅ **Pago a Proveedor:** Completamente implementado y funcional
-- 🚧 **Otros tipos de egreso:** Pendientes (Gasto, Préstamo Empleado, Compra)
-- 🚧 **Formulario de ingresos:** Completamente pendiente
-- ✅ **API `/api/movimientos`:** Funcional para crear movimientos
+- ✅ **Venta en Efectivo:** Completamente implementado y funcional
+- ✅ **Cobranza a Clientes:** Completamente implementado con estados de cuenta automáticos
+- ✅ **Dropdown de INGRESO:** Navegación mejorada con 2 opciones (Venta/Cobranza)
+- ✅ **Display de movimientos:** Mejorado con códigos de color por tipo
+- ✅ **Zona horaria México:** Corregida para fechas correctas
+- 🔄 **Otros tipos de egreso:** Pendientes según necesidad (Gasto, Préstamo Empleado, Compra)
+- ✅ **API `/api/movimientos`:** Funcional para crear movimientos + actualización automática saldos
 
 **IMPORTANTE:** Este contexto debe mantenerse para todas las sesiones futuras de desarrollo de movimientos.
 
@@ -285,66 +289,67 @@ Cajeras → Efectivo Contadora → Cuenta Fiscal
 - **✅ APIs** funcionando
 - **✅ Errores TypeError** corregidos (2025-09-22 PM)
 
-## 🎯 Próximos Pasos (ACTUALIZADO - 2025-09-24)
+## 🎯 Próximos Pasos (ACTUALIZADO - 2025-09-26)
 
-### **ESTADO ACTUAL: ✅ SISTEMA DE GESTIÓN EMPRESARIAL CASI COMPLETO**
+### **ESTADO ACTUAL: ✅ SISTEMA DE GESTIÓN EMPRESARIAL 95% COMPLETO**
 
-**Completado recientemente:**
+**Completado recientemente (Sesión anterior):**
+- ✅ **Módulo de Cobranzas:** Completamente funcional con estados de cuenta automáticos
+- ✅ **Dropdown de INGRESO:** Navegación mejorada (Venta Efectivo + Cobranza)
+- ✅ **Zona horaria México:** Fechas corregidas para operación local
+- ✅ **Display mejorado:** Códigos de color en listado de movimientos
+- ✅ **Base de datos limpia:** Eliminados duplicados, datos consistentes
+- ✅ **Estados de cuenta automáticos:** Actualización en tiempo real de saldos
+
+**Ya completado previamente:**
 - ✅ **7 CRUDs de Catálogos:** Empleados, Proveedores, Clientes, Categorías, Subcategorías, Empresas, Cuentas
 - ✅ **Sistema de autenticación:** NextAuth completamente funcional
-- ✅ **Selector de empresa activa:** Dashboard principal mejorado
-- ✅ **Optimización UX:** Frontend-only filtering en todos los módulos
-- ✅ **APIs backend:** Todas las APIs funcionando correctamente
-- ✅ **Navegación completa:** Sistema jerárquico coherente
-- ✅ **Módulo de movimientos:** Listado avanzado implementado
+- ✅ **Módulo de movimientos principales:** Venta Efectivo, Cobranza, Pago Proveedor
+- ✅ **APIs backend:** Todas funcionando con actualización automática de saldos
 
-### **🚀 PRÓXIMA FASE - FINALIZACIÓN DEL MÓDULO DE MOVIMIENTOS**
+### **🚀 ÚLTIMA MILLA - MEJORAS DE UX Y ESCALABILIDAD**
 
-#### **1. 💰 Finalizar Módulo de Movimientos (PRIORIDAD CRÍTICA)**
-- **Estado actual:** Listado completo implementado con filtros avanzados
-- **Pendiente:**
-  - Formularios de creación (ingreso y egreso)
-  - Formulario de edición de movimientos existentes
-  - Validaciones de negocio y cálculos automáticos
-  - Integración con cortes y cuentas
-- **Complejidad:** Alta (módulo más complejo del sistema)
-- **Impacto:** Crítico - Completar el corazón del sistema
+#### **1. 👥 Alta de Clientes con Saldo Inicial (PRIORIDAD MEDIA)**
+- **Estado actual:** Formulario básico existe en `/dashboard/clientes/nuevo`
+- **Mejora requerida:**
+  - Campo saldo inicial en formulario
+  - Transacción atómica: cliente + saldo inicial
+  - Validaciones apropiadas
+- **Tiempo estimado:** 30 minutos
+- **Impacto:** Mejora UX para setup inicial de clientes
 
-#### **2. 📊 Módulo de Reportes (COMPLEMENTARIO)**
-- **Propósito:** Generación de reportes financieros y análisis
-- **Características:**
-  - Reportes de flujo de efectivo
-  - Estados de cuenta por cliente/proveedor
-  - Análisis de cortes históricos
-  - Reportes por categorías de gasto
-- **Complejidad:** Media
-- **Impacto:** Alto para análisis de negocio
+#### **2. 🔍 Búsqueda Optimizada en Cobranza (PRIORIDAD MEDIA)**
+- **Estado actual:** Selector `<Select>` funcional pero no escala
+- **Mejora requerida:** Componente de búsqueda con filtrado en tiempo real
+- **Beneficio:** Mejor UX para bases de datos grandes
+- **Tiempo estimado:** 45 minutos
+- **Impacto:** Escalabilidad para operación con muchos clientes
 
-#### **3. 🔧 Validación y Testing Integral**
-- **Pruebas end-to-end** de flujos completos
-- **Validación de cálculos automáticos** en cortes y movimientos
-- **Testing de integración** entre módulos
-- **Performance testing** con datos reales
+#### **3. 🔧 Testing Integral Final (PRIORIDAD BAJA)**
+- **Validación end-to-end** de flujos principales completados
+- **Testing de cálculos automáticos** de saldos
+- **Validación de zona horaria** en diferentes escenarios
+- **Tiempo estimado:** 15 minutos
+- **Impacto:** Confianza para producción
 
-### **🎯 ORDEN SUGERIDO PARA PRÓXIMA SESIÓN:**
-1. **Formularios de Movimientos** (Completar el módulo más crítico)
-2. **Integración con Cortes** (Actualización automática)
-3. **Validaciones de negocio** (Cálculos automáticos de saldos)
-4. **Testing integral** (Validación completa del sistema)
+### **📊 SISTEMA PRÁCTICAMENTE LISTO PARA PRODUCCIÓN (95%)**
 
-### **📊 SISTEMA LISTO PARA PRODUCCIÓN (90%)**
-**Funcionalidades core completadas:**
-- ✅ Gestión completa de entidades
-- ✅ Sistema de empresas y cuentas
-- ✅ Categorización de gastos
-- ✅ Autenticación y seguridad
-- ✅ Listado de movimientos
-- ✅ Módulo de cortes (legacy - funcionando)
+**Funcionalidades operativas completadas:**
+- ✅ **Gestión completa de entidades** (empleados, clientes, proveedores)
+- ✅ **Sistema de empresas y cuentas** multi-empresa
+- ✅ **Categorización completa** de gastos con subcategorías
+- ✅ **Autenticación y seguridad** NextAuth
+- ✅ **Movimientos principales:** Venta Efectivo, Cobranza, Pago Proveedor
+- ✅ **Estados de cuenta automáticos** con trazabilidad completa
+- ✅ **Zona horaria local** para México
 
-**Última milla pendiente:**
-- 🔄 Formularios de movimientos
-- 🔄 Integración cortes-movimientos
-- 🔄 Testing final
+**Última milla pendiente (solo mejoras UX):**
+- 🔄 **Alta clientes con saldo inicial** (30 min)
+- 🔄 **Búsqueda optimizada** (45 min)
+- 🔄 **Testing final** (15 min)
+
+**Tiempo total restante:** ~90 minutos
+**Estado:** **Listo para producción excepto por 2 mejoras de UX**
 
 ## 🔧 Configuración Técnica
 

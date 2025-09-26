@@ -8,15 +8,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Save, TrendingUp, DollarSign, Store, Building2, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Save, TrendingUp, DollarSign, Store, Building2, ChevronDown, Users } from 'lucide-react'
+import ClienteSearch from '@/components/ui/cliente-search'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
 interface FormData {
-  tipo_movimiento: string
   monto: string
   fecha: string
   cuenta_destino_id: string
+  cliente_id: string
   referencia: string
 }
 
@@ -28,19 +29,21 @@ interface CuentaData {
   saldo_actual: number
 }
 
-export default function NuevoIngresoPage() {
+interface ClienteData {
+  id: number
+  nombre: string
+  saldo_pendiente?: number
+}
+
+export default function CobranzaPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
   const [cuentas, setCuentas] = useState<CuentaData[]>([])
+  const [clientes, setClientes] = useState<ClienteData[]>([])
   const [empresaActiva, setEmpresaActiva] = useState<number>(1)
   const [nombreEmpresa, setNombreEmpresa] = useState<string>('')
   const [empresasDisponibles, setEmpresasDisponibles] = useState<Array<{id: number, nombre: string}>>([])
-
-  interface EmpresaData {
-    id: number
-    nombre: string
-  }
 
   // Función helper para obtener fecha local en formato datetime-local
   const getFechaLocal = () => {
@@ -52,10 +55,10 @@ export default function NuevoIngresoPage() {
   }
 
   const [formData, setFormData] = useState<FormData>({
-    tipo_movimiento: 'venta_efectivo',
     monto: '',
     fecha: getFechaLocal(),
     cuenta_destino_id: '',
+    cliente_id: '',
     referencia: ''
   })
 
@@ -69,7 +72,7 @@ export default function NuevoIngresoPage() {
     }
   }, [])
 
-  // Cargar empresas disponibles (para selector)
+  // Cargar empresas disponibles
   const cargarEmpresas = async () => {
     try {
       const response = await fetch('/api/empresas?activa=true')
@@ -94,12 +97,17 @@ export default function NuevoIngresoPage() {
       const cuentasRes = await fetch('/api/cuentas')
       const cuentasData = await cuentasRes.json()
 
-      // Para VENTA EN EFECTIVO: mostrar todas las cuentas cajeras disponibles
+      // Para COBRANZA: mostrar todas las cuentas cajeras disponibles
       const cuentasCajeras = cuentasData.cuentas?.filter((c: CuentaData) =>
         c.tipo_cuenta === 'cajera' && c.activa
       ) || []
 
       setCuentas(cuentasCajeras)
+
+      // Cargar clientes
+      const clientesRes = await fetch('/api/entidades?es_cliente=true')
+      const clientesData = await clientesRes.json()
+      setClientes(clientesData.entidades || [])
 
     } catch (error) {
       console.error('Error cargando datos:', error)
@@ -129,7 +137,8 @@ export default function NuevoIngresoPage() {
     // Limpiar formulario cuando cambie la empresa
     setFormData(prev => ({
       ...prev,
-      cuenta_destino_id: ''
+      cuenta_destino_id: '',
+      cliente_id: ''
     }))
 
     toast.success('Empresa activa cambiada')
@@ -138,7 +147,7 @@ export default function NuevoIngresoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.monto || !formData.cuenta_destino_id) {
+    if (!formData.monto || !formData.cuenta_destino_id || !formData.cliente_id) {
       toast.error('Por favor completa todos los campos requeridos')
       return
     }
@@ -150,14 +159,15 @@ export default function NuevoIngresoPage() {
       const fechaLocal = new Date(formData.fecha)
 
       const payload = {
-        tipo_movimiento: 'venta_efectivo',
+        tipo_movimiento: 'cobranza',
         es_ingreso: true,
         es_traspaso: false,
         monto: parseFloat(formData.monto),
         fecha: fechaLocal.toISOString(),
         empresa_id: empresaActiva,
         cuenta_destino_id: parseInt(formData.cuenta_destino_id),
-        referencia: formData.referencia || `Venta en efectivo - ${fechaLocal.toLocaleDateString('es-MX')}`
+        entidad_relacionada_id: parseInt(formData.cliente_id),
+        referencia: formData.referencia || `Cobranza - ${fechaLocal.toLocaleDateString('es-MX')}`
       }
 
       const response = await fetch('/api/movimientos', {
@@ -170,16 +180,16 @@ export default function NuevoIngresoPage() {
 
       if (response.ok) {
         const resultado = await response.json()
-        toast.success(`Venta en efectivo registrada por $${formData.monto}`)
+        toast.success(`Cobranza registrada por $${formData.monto}`)
         router.push('/dashboard/movimientos')
       } else {
         const error = await response.json()
-        toast.error(error.error || 'Error al registrar la venta')
+        toast.error(error.error || 'Error al registrar la cobranza')
       }
 
     } catch (error) {
       console.error('Error:', error)
-      toast.error('Error al registrar la venta en efectivo')
+      toast.error('Error al registrar la cobranza')
     } finally {
       setLoading(false)
     }
@@ -221,11 +231,11 @@ export default function NuevoIngresoPage() {
         <div className="flex items-center gap-4">
           {/* Título */}
           <div className="flex items-center gap-2">
-            <DollarSign className="h-6 w-6 text-green-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Venta en Efectivo</h1>
+            <Users className="h-6 w-6 text-green-600" />
+            <h1 className="text-2xl font-bold text-gray-900">Cobranza</h1>
           </div>
 
-          {/* Selector de Empresa Activa - Arriba derecha */}
+          {/* Selector de Empresa Activa */}
           <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg border">
             <Building2 className="h-4 w-4 text-blue-600" />
             <span className="text-sm text-blue-700 font-medium">Empresa:</span>
@@ -255,11 +265,11 @@ export default function NuevoIngresoPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-green-600" />
-            Registrar Venta en Efectivo
+            <Users className="h-5 w-5 text-green-600" />
+            Registrar Cobranza
           </CardTitle>
           <CardDescription>
-            Registra el efectivo recibido por ventas - primera operación del día
+            Cobrar dinero de clientes - afecta el estado de cuenta del cliente
           </CardDescription>
         </CardHeader>
 
@@ -289,6 +299,17 @@ export default function NuevoIngresoPage() {
                   type="datetime-local"
                   value={formData.fecha}
                   onChange={(e) => handleInputChange('fecha', e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="cliente">Cliente *</Label>
+                <ClienteSearch
+                  clientes={clientes}
+                  value={formData.cliente_id}
+                  onValueChange={(value) => handleInputChange('cliente_id', value)}
+                  placeholder="Buscar cliente por nombre..."
                   required
                 />
               </div>
@@ -324,10 +345,10 @@ export default function NuevoIngresoPage() {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="referencia">Referencia (Cajera/Descripción)</Label>
+                <Label htmlFor="referencia">Referencia</Label>
                 <Textarea
                   id="referencia"
-                  placeholder="Ej: María García - Venta mostrador mañana"
+                  placeholder="Ej: Factura 123, Pago parcial, etc."
                   value={formData.referencia}
                   onChange={(e) => handleInputChange('referencia', e.target.value)}
                   rows={3}
@@ -348,7 +369,7 @@ export default function NuevoIngresoPage() {
                 className="bg-green-600 hover:bg-green-700"
               >
                 <Save className="h-4 w-4 mr-2" />
-                {loading ? 'Registrando...' : 'Registrar Venta'}
+                {loading ? 'Registrando...' : 'Registrar Cobranza'}
               </Button>
             </div>
           </form>

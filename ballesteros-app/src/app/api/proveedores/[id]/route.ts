@@ -7,7 +7,8 @@ import { z } from 'zod'
 const updateProveedorSchema = z.object({
   nombre: z.string().min(1).max(255).optional(),
   telefono: z.string().max(20).optional().nullable(),
-  activo: z.boolean().optional()
+  activo: z.boolean().optional(),
+  saldo_inicial: z.number().min(0).optional().default(0)
 })
 
 // GET /api/proveedores/[id] - Obtener proveedor por ID
@@ -39,6 +40,13 @@ export async function GET(
         entidades_empresas: {
           include: {
             empresa: {
+              select: { id: true, nombre: true }
+            }
+          }
+        },
+        saldos: {
+          include: {
+            empresas: {
               select: { id: true, nombre: true }
             }
           }
@@ -77,6 +85,12 @@ export async function GET(
         empresa_nombre: rel.empresa.nombre,
         tipo_relacion: rel.tipo_relacion
       })),
+      saldos_por_empresa: proveedor.saldos.map(saldo => ({
+        empresa_id: saldo.empresa_id,
+        empresa_nombre: saldo.empresas?.nombre || 'Sin empresa',
+        tipo_saldo: saldo.tipo_saldo,
+        saldo_actual: Number(saldo.saldo_actual)
+      })),
       contadores: {
         movimientos_como_proveedor: proveedor._count.movimientos_entidad
       }
@@ -84,6 +98,7 @@ export async function GET(
 
     // Remover campos internos
     delete (proveedorFormateado as any).entidades_empresas
+    delete (proveedorFormateado as any).saldos
     delete (proveedorFormateado as any)._count
 
     return NextResponse.json({ proveedor: proveedorFormateado })
@@ -152,10 +167,59 @@ export async function PUT(
       }
     }
 
-    // Actualizar proveedor (las empresas se mantienen automáticamente)
-    const proveedor = await prisma.entidad.update({
-      where: { id: proveedorId },
-      data: validatedData
+    // Actualizar proveedor usando transacción
+    const proveedor = await prisma.$transaction(async (tx) => {
+      // Actualizar datos básicos del proveedor
+      const { saldo_inicial, ...proveedorData } = validatedData
+      const proveedorActualizado = await tx.entidad.update({
+        where: { id: proveedorId },
+        data: proveedorData
+      })
+
+      // Si se especifica saldo inicial, crear/ajustar saldos
+      if (saldo_inicial && saldo_inicial > 0) {
+        // Obtener todas las empresas activas
+        const empresasActivas = await tx.empresa.findMany({
+          where: { activa: true }
+        })
+
+        // Crear saldos para cada empresa activa si no existen
+        for (const empresa of empresasActivas) {
+          const saldoExistente = await tx.saldo.findFirst({
+            where: {
+              entidad_id: proveedorId,
+              empresa_id: empresa.id,
+              tipo_saldo: 'cuenta_pagar'
+            }
+          })
+
+          if (!saldoExistente) {
+            await tx.saldo.create({
+              data: {
+                entidad_id: proveedorId,
+                empresa_id: empresa.id,
+                tipo_saldo: 'cuenta_pagar',
+                saldo_inicial: saldo_inicial,
+                saldo_actual: saldo_inicial,
+                total_cargos: saldo_inicial,
+                total_abonos: 0
+              }
+            })
+          } else {
+            // Ajustar saldo existente
+            const nuevoCargo = saldo_inicial
+            await tx.saldo.update({
+              where: { id: saldoExistente.id },
+              data: {
+                total_cargos: saldoExistente.total_cargos + nuevoCargo,
+                saldo_actual: saldoExistente.saldo_actual + nuevoCargo
+              }
+            })
+          }
+        }
+      }
+
+      return proveedorActualizado
     })
 
     // Obtener proveedor completo con relaciones para respuesta

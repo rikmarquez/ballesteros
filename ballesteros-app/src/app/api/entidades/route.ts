@@ -74,6 +74,16 @@ export async function GET(request: NextRequest) {
             }
           }
         },
+        saldos: {
+          select: {
+            id: true,
+            empresa_id: true,
+            tipo_saldo: true,
+            saldo_actual: true,
+            total_cargos: true,
+            total_abonos: true
+          }
+        },
         _count: {
           select: {
             movimientos_entidad: true,
@@ -104,30 +114,45 @@ export async function GET(request: NextRequest) {
     const total = await prisma.entidad.count({ where })
 
     // Formatear respuesta
-    const entidadesFormateadas = entidades.map(entidad => ({
-      id: entidad.id,
-      nombre: entidad.nombre,
-      telefono: entidad.telefono,
-      es_cliente: entidad.es_cliente,
-      es_proveedor: entidad.es_proveedor,
-      es_empleado: entidad.es_empleado,
-      puesto: entidad.puesto,
-      puede_operar_caja: entidad.puede_operar_caja,
-      activo: entidad.activo,
-      created_at: entidad.created_at,
-      empresas: entidad.entidades_empresas.map(rel => ({
-        empresa_id: rel.empresa_id,
-        empresa_nombre: rel.empresa.nombre,
-        tipo_relacion: rel.tipo_relacion,
-        activo: rel.activo
-      })),
-      contadores: {
-        movimientos_como_entidad: entidad._count.movimientos_entidad,
-        movimientos_como_empleado: entidad._count.movimientos_empleado,
-        cortes: entidad._count.cortes,
-        saldos: entidad._count.saldos
+    const entidadesFormateadas = entidades.map(entidad => {
+      // Calcular saldo pendiente total (suma de saldos de crédito)
+      const saldoPendiente = entidad.saldos
+        .filter(saldo => saldo.tipo_saldo === 'credito' || saldo.tipo_saldo === 'general')
+        .reduce((total, saldo) => total + Number(saldo.saldo_actual || 0), 0)
+
+      return {
+        id: entidad.id,
+        nombre: entidad.nombre,
+        telefono: entidad.telefono,
+        es_cliente: entidad.es_cliente,
+        es_proveedor: entidad.es_proveedor,
+        es_empleado: entidad.es_empleado,
+        puesto: entidad.puesto,
+        puede_operar_caja: entidad.puede_operar_caja,
+        activo: entidad.activo,
+        created_at: entidad.created_at,
+        saldo_pendiente: saldoPendiente, // Saldo pendiente para mostrar en el formulario
+        empresas: entidad.entidades_empresas.map(rel => ({
+          empresa_id: rel.empresa_id,
+          empresa_nombre: rel.empresa.nombre,
+          tipo_relacion: rel.tipo_relacion,
+          activo: rel.activo
+        })),
+        saldos: entidad.saldos.map(saldo => ({
+          empresa_id: saldo.empresa_id,
+          tipo_saldo: saldo.tipo_saldo,
+          saldo_actual: Number(saldo.saldo_actual || 0),
+          total_cargos: Number(saldo.total_cargos || 0),
+          total_abonos: Number(saldo.total_abonos || 0)
+        })),
+        contadores: {
+          movimientos_como_entidad: entidad._count.movimientos_entidad,
+          movimientos_como_empleado: entidad._count.movimientos_empleado,
+          cortes: entidad._count.cortes,
+          saldos: entidad._count.saldos
+        }
       }
-    }))
+    })
 
     return NextResponse.json({
       entidades: entidadesFormateadas,

@@ -7,7 +7,8 @@ import { z } from 'zod'
 const updateClienteSchema = z.object({
   nombre: z.string().min(1).max(255).optional(),
   telefono: z.string().max(20).optional().nullable(),
-  activo: z.boolean().optional()
+  activo: z.boolean().optional(),
+  saldo_inicial: z.number().min(0).optional().default(0)
 })
 
 // GET /api/clientes/[id] - Obtener cliente por ID
@@ -152,10 +153,59 @@ export async function PUT(
       }
     }
 
-    // Actualizar cliente (las empresas se mantienen automáticamente)
-    const cliente = await prisma.entidad.update({
-      where: { id: clienteId },
-      data: validatedData
+    // Actualizar cliente usando transacción
+    const cliente = await prisma.$transaction(async (tx) => {
+      // Actualizar datos básicos del cliente
+      const { saldo_inicial, ...clienteData } = validatedData
+      const clienteActualizado = await tx.entidad.update({
+        where: { id: clienteId },
+        data: clienteData
+      })
+
+      // Si se especifica saldo inicial, crear/ajustar saldos
+      if (saldo_inicial && saldo_inicial > 0) {
+        // Obtener todas las empresas activas
+        const empresasActivas = await tx.empresa.findMany({
+          where: { activa: true }
+        })
+
+        // Crear saldos para cada empresa activa si no existen
+        for (const empresa of empresasActivas) {
+          const saldoExistente = await tx.saldo.findFirst({
+            where: {
+              entidad_id: clienteId,
+              empresa_id: empresa.id,
+              tipo_saldo: 'cuenta_cobrar'
+            }
+          })
+
+          if (!saldoExistente) {
+            await tx.saldo.create({
+              data: {
+                entidad_id: clienteId,
+                empresa_id: empresa.id,
+                tipo_saldo: 'cuenta_cobrar',
+                saldo_inicial: saldo_inicial,
+                saldo_actual: saldo_inicial,
+                total_cargos: saldo_inicial,
+                total_abonos: 0
+              }
+            })
+          } else {
+            // Ajustar saldo existente
+            const nuevoCargo = saldo_inicial
+            await tx.saldo.update({
+              where: { id: saldoExistente.id },
+              data: {
+                total_cargos: saldoExistente.total_cargos + nuevoCargo,
+                saldo_actual: saldoExistente.saldo_actual + nuevoCargo
+              }
+            })
+          }
+        }
+      }
+
+      return clienteActualizado
     })
 
     // Obtener cliente completo con relaciones para respuesta

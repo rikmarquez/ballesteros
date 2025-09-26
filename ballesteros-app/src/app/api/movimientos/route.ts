@@ -8,7 +8,8 @@ const prisma = new PrismaClient()
 // Schema de validación para crear movimiento
 const movimientoSchema = z.object({
   tipo_movimiento: z.string().min(1, "Tipo de movimiento es requerido"),
-  es_ingreso: z.boolean(),
+  es_ingreso: z.boolean().optional(),
+  es_traspaso: z.boolean().default(false),
   monto: z.number().positive("Monto debe ser positivo"),
   fecha: z.string().datetime().optional(),
 
@@ -35,6 +36,18 @@ const movimientoSchema = z.object({
   referencia: z.string().optional(),
   beneficiario: z.string().optional(),
   comision: z.number().default(0)
+}).refine((data) => {
+  // Validaciones específicas para traspasos
+  if (data.es_traspaso) {
+    return data.cuenta_origen_id && data.cuenta_destino_id && data.cuenta_origen_id !== data.cuenta_destino_id
+  }
+  // Para no traspasos, es_ingreso debe estar definido
+  if (!data.es_traspaso) {
+    return data.es_ingreso !== undefined
+  }
+  return true
+}, {
+  message: "Los traspasos requieren cuenta origen y destino diferentes. Los ingresos/egresos requieren es_ingreso definido."
 })
 
 // GET /api/movimientos - Listar movimientos con filtros avanzados
@@ -50,6 +63,7 @@ export async function GET(request: NextRequest) {
     // Filtros disponibles
     const tipo_movimiento = searchParams.get('tipo_movimiento')
     const es_ingreso = searchParams.get('es_ingreso')
+    const es_traspaso = searchParams.get('es_traspaso')
     const empresa_id = searchParams.get('empresa_id')
     const corte_id = searchParams.get('corte_id')
     const entidad_id = searchParams.get('entidad_id')
@@ -66,6 +80,7 @@ export async function GET(request: NextRequest) {
 
     if (tipo_movimiento) where.tipo_movimiento = tipo_movimiento
     if (es_ingreso !== null) where.es_ingreso = es_ingreso === 'true'
+    if (es_traspaso !== null) where.es_traspaso = es_traspaso === 'true'
     if (empresa_id) where.empresa_id = parseInt(empresa_id)
     if (corte_id) where.corte_id = parseInt(corte_id)
     if (entidad_id) {
@@ -165,6 +180,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = movimientoSchema.parse(body)
 
+    // Validar lógica de traspaso
+    if (validatedData.es_traspaso) {
+      // Para traspasos, es_ingreso se ignora
+      validatedData.es_ingreso = true // Valor por defecto, se ignora en cálculos
+    }
+
     // Validaciones adicionales
     if (validatedData.cuenta_origen_id) {
       const cuentaOrigen = await prisma.cuenta.findUnique({
@@ -197,6 +218,7 @@ export async function POST(request: NextRequest) {
         data: {
           tipo_movimiento: validatedData.tipo_movimiento,
           es_ingreso: validatedData.es_ingreso,
+          es_traspaso: validatedData.es_traspaso,
           monto: validatedData.monto,
           fecha: validatedData.fecha ? new Date(validatedData.fecha) : undefined,
           cuenta_origen_id: validatedData.cuenta_origen_id,
@@ -226,31 +248,54 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      // Actualizar saldos de cuentas si aplica
-      if (validatedData.cuenta_origen_id) {
-        await tx.cuenta.update({
-          where: { id: validatedData.cuenta_origen_id },
-          data: {
-            saldo_actual: {
-              decrement: validatedData.monto
+      // Actualizar saldos de cuentas
+      if (validatedData.es_traspaso) {
+        // Para traspasos: decrementar origen, incrementar destino
+        if (validatedData.cuenta_origen_id) {
+          await tx.cuenta.update({
+            where: { id: validatedData.cuenta_origen_id },
+            data: {
+              saldo_actual: {
+                decrement: validatedData.monto
+              }
             }
-          }
-        })
+          })
+        }
+        if (validatedData.cuenta_destino_id) {
+          await tx.cuenta.update({
+            where: { id: validatedData.cuenta_destino_id },
+            data: {
+              saldo_actual: {
+                increment: validatedData.monto
+              }
+            }
+          })
+        }
+      } else {
+        // Para ingresos/egresos: solo una cuenta se afecta
+        if (validatedData.es_ingreso && validatedData.cuenta_destino_id) {
+          await tx.cuenta.update({
+            where: { id: validatedData.cuenta_destino_id },
+            data: {
+              saldo_actual: {
+                increment: validatedData.monto
+              }
+            }
+          })
+        } else if (!validatedData.es_ingreso && validatedData.cuenta_origen_id) {
+          await tx.cuenta.update({
+            where: { id: validatedData.cuenta_origen_id },
+            data: {
+              saldo_actual: {
+                decrement: validatedData.monto
+              }
+            }
+          })
+        }
       }
 
-      if (validatedData.cuenta_destino_id) {
-        await tx.cuenta.update({
-          where: { id: validatedData.cuenta_destino_id },
-          data: {
-            saldo_actual: {
-              increment: validatedData.monto
-            }
-          }
-        })
-      }
-
-      // Actualizar campos del corte si está asociado
-      if (validatedData.corte_id) {
+      // Actualizar campos del corte si está asociado (solo para ingresos/egresos, no traspasos)
+      if (validatedData.corte_id && !validatedData.es_traspaso) {
         const campoCorte = getCampoCorte(validatedData.tipo_movimiento)
         if (campoCorte) {
           await tx.corte.update({
@@ -261,6 +306,34 @@ export async function POST(request: NextRequest) {
               }
             }
           })
+        }
+      }
+
+      // Actualizar estado de cuenta de entidades (clientes/proveedores)
+      if (validatedData.entidad_relacionada_id && validatedData.empresa_id) {
+        const tipoSaldo = esMovimientoCredito(validatedData.tipo_movimiento) ? 'credito' : 'general'
+
+        // Para COBRANZAS: disminuir saldo pendiente del cliente (abono)
+        if (validatedData.tipo_movimiento === 'cobranza') {
+          await actualizarSaldoEntidad(
+            tx,
+            validatedData.entidad_relacionada_id,
+            validatedData.empresa_id,
+            tipoSaldo,
+            0, // cargos
+            validatedData.monto // abonos
+          )
+        }
+        // Para VENTAS A CREDITO: aumentar saldo pendiente del cliente (cargo)
+        else if (validatedData.tipo_movimiento === 'venta_credito') {
+          await actualizarSaldoEntidad(
+            tx,
+            validatedData.entidad_relacionada_id,
+            validatedData.empresa_id,
+            tipoSaldo,
+            validatedData.monto, // cargos
+            0 // abonos
+          )
         }
       }
 
@@ -287,6 +360,7 @@ export async function POST(request: NextRequest) {
 
 // Función helper para mapear tipo de movimiento a campo de corte
 function getCampoCorte(tipoMovimiento: string): string | null {
+  // Solo movimientos que afectan cortes (NO traspasos)
   const mapeoTipos: Record<string, string> = {
     'venta_efectivo': 'venta_efectivo',
     'venta_credito': 'venta_credito',
@@ -300,7 +374,86 @@ function getCampoCorte(tipoMovimiento: string): string | null {
     'prestamo': 'prestamo',
     'cortesia': 'cortesia',
     'otros_retiros': 'otros_retiros'
+    // NOTA: Los traspasos NO aparecen aquí porque no afectan cortes
   }
 
   return mapeoTipos[tipoMovimiento] || null
+}
+
+// Función helper para identificar tipos de traspaso
+export function esTipoTraspaso(tipoMovimiento: string): boolean {
+  const tiposTraspasos = [
+    'retiro_parcial',      // Cajera → Contadora
+    'deposito_efectivo',   // Cajera → Contadora
+    'transferencia_interna', // Entre cualquier cuenta
+    'movimiento_carlos'    // Carlos ↔ Cualquier cuenta
+  ]
+
+  return tiposTraspasos.includes(tipoMovimiento)
+}
+
+// Función helper para identificar movimientos que afectan crédito
+function esMovimientoCredito(tipoMovimiento: string): boolean {
+  const tiposCredito = ['venta_credito', 'cobranza']
+  return tiposCredito.includes(tipoMovimiento)
+}
+
+// Función helper para actualizar saldo de entidad
+async function actualizarSaldoEntidad(
+  tx: any,
+  entidadId: number,
+  empresaId: number,
+  tipoSaldo: string,
+  cargos: number,
+  abonos: number
+) {
+  // Buscar saldo existente o crear uno nuevo
+  const saldoExistente = await tx.saldo.findUnique({
+    where: {
+      entidad_id_empresa_id_tipo_saldo: {
+        entidad_id: entidadId,
+        empresa_id: empresaId,
+        tipo_saldo: tipoSaldo
+      }
+    }
+  })
+
+  if (saldoExistente) {
+    // Actualizar saldo existente
+    await tx.saldo.update({
+      where: {
+        entidad_id_empresa_id_tipo_saldo: {
+          entidad_id: entidadId,
+          empresa_id: empresaId,
+          tipo_saldo: tipoSaldo
+        }
+      },
+      data: {
+        total_cargos: {
+          increment: cargos
+        },
+        total_abonos: {
+          increment: abonos
+        },
+        saldo_actual: {
+          increment: cargos - abonos // Cargos suman, abonos restan
+        },
+        ultima_actualizacion: new Date()
+      }
+    })
+  } else {
+    // Crear nuevo saldo
+    await tx.saldo.create({
+      data: {
+        entidad_id: entidadId,
+        empresa_id: empresaId,
+        tipo_saldo: tipoSaldo,
+        saldo_inicial: 0,
+        total_cargos: cargos,
+        total_abonos: abonos,
+        saldo_actual: cargos - abonos,
+        ultima_actualizacion: new Date()
+      }
+    })
+  }
 }

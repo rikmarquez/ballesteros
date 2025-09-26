@@ -115,6 +115,8 @@ model Cuenta {
   id                  Int          @id @default(autoincrement())
   tipo_cuenta         String       @db.VarChar(20)
   nombre              String       @db.VarChar(100)
+  descripcion         String?      @db.VarChar(255)
+  empresa_asociada    String?      @db.VarChar(50)  // 'Principal', 'Express', 'Asadero', NULL para centralizadas
   saldo_actual        Decimal?     @default(0) @db.Decimal(10, 2)
   activa              Boolean?     @default(true)
   created_at          DateTime?    @default(now()) @db.Timestamp(6)
@@ -166,6 +168,7 @@ model Movimiento {
   id                      Int                @id @default(autoincrement())
   tipo_movimiento         String             @db.VarChar(50)
   es_ingreso              Boolean
+  es_traspaso             Boolean            @default(false)
   monto                   Decimal            @db.Decimal(10, 2)
   fecha                   DateTime?          @default(now()) @db.Timestamp(6)
   cuenta_origen_id        Int?

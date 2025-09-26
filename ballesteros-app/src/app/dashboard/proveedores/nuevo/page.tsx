@@ -19,6 +19,7 @@ export default function NuevoProveedorPage() {
   const [proveedorData, setProveedorData] = useState({
     nombre: '',
     telefono: '',
+    saldo_inicial: '',
     activo: true
   })
 
@@ -42,6 +43,7 @@ export default function NuevoProveedorPage() {
       const dataToSend = {
         nombre: proveedorData.nombre.trim(),
         telefono: proveedorData.telefono.trim() || null,
+        saldo_inicial: proveedorData.saldo_inicial ? parseFloat(proveedorData.saldo_inicial) : 0,
         activo: proveedorData.activo
       }
 
@@ -115,6 +117,20 @@ export default function NuevoProveedorPage() {
                   onChange={(e) => handleInputChange('telefono', e.target.value)}
                   placeholder="Número de teléfono"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="saldo_inicial">Saldo Inicial (Deuda Nuestra)</Label>
+                <Input
+                  id="saldo_inicial"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={proveedorData.saldo_inicial}
+                  onChange={(e) => handleInputChange('saldo_inicial', e.target.value)}
+                  placeholder="0.00"
+                />
+                <p className="text-sm text-gray-600 mt-1">Cantidad que debemos al proveedor al momento de registrarlo</p>
               </div>
 
             </CardContent>

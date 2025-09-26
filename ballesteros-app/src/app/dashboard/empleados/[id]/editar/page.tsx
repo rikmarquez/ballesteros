@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Loader2, Users, Save, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Users, Save, AlertCircle, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -24,6 +24,12 @@ interface EmpleadoData {
     empresa_id: number
     empresa_nombre: string
     tipo_relacion: string
+  }[]
+  saldos_por_empresa?: {
+    empresa_id: number
+    empresa_nombre: string
+    tipo_saldo: string
+    saldo_actual: number
   }[]
   contadores?: {
     movimientos_como_empleado: number
@@ -47,7 +53,8 @@ export default function EditarEmpleadoPage() {
     telefono: '',
     puesto: '',
     puede_operar_caja: false,
-    activo: true
+    activo: true,
+    saldo_inicial: ''
   })
 
   const cargarEmpleado = async () => {
@@ -68,7 +75,8 @@ export default function EditarEmpleadoPage() {
         telefono: data.empleado.telefono || '',
         puesto: data.empleado.puesto || '',
         puede_operar_caja: data.empleado.puede_operar_caja,
-        activo: data.empleado.activo
+        activo: data.empleado.activo,
+        saldo_inicial: ''
       })
 
     } catch (error) {
@@ -112,7 +120,8 @@ export default function EditarEmpleadoPage() {
         telefono: formData.telefono.trim() || null,
         puesto: formData.puesto.trim() || null,
         puede_operar_caja: formData.puede_operar_caja,
-        activo: formData.activo
+        activo: formData.activo,
+        saldo_inicial: formData.saldo_inicial ? parseFloat(formData.saldo_inicial) : 0
         // No enviamos empresas - se mantienen las relaciones existentes automáticamente
       }
 
@@ -202,6 +211,45 @@ export default function EditarEmpleadoPage() {
         </CardContent>
       </Card>
 
+      {/* Saldos por empresa (préstamos) */}
+      {empleadoData.saldos_por_empresa && empleadoData.saldos_por_empresa.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-blue-600" />
+              Préstamos por Empresa
+            </CardTitle>
+            <CardDescription>
+              Préstamos pendientes del empleado
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3">
+              {empleadoData.saldos_por_empresa.map(saldo => (
+                <div key={`${saldo.empresa_id}-${saldo.tipo_saldo}`} className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div>
+                    <div className="font-medium text-gray-900">{saldo.empresa_nombre}</div>
+                    <div className="text-sm text-gray-600">Préstamo pendiente</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-yellow-600">
+                      ${saldo.saldo_actual.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-500">Saldo pendiente</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">
+                <strong>Nota:</strong> Para ajustar estos préstamos, registra pagos o nuevos préstamos
+                desde el módulo de movimientos.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <form onSubmit={onSubmit}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -241,6 +289,22 @@ export default function EditarEmpleadoPage() {
                   onChange={(e) => handleInputChange('puesto', e.target.value)}
                   placeholder="Puesto o cargo del empleado"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="saldo_inicial">Ajustar Saldo Inicial (Préstamo)</Label>
+                <Input
+                  id="saldo_inicial"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.saldo_inicial}
+                  onChange={(e) => handleInputChange('saldo_inicial', e.target.value)}
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-gray-600 mt-1">
+                  Solo completar si se requiere ajustar el saldo inicial del préstamo
+                </p>
               </div>
             </CardContent>
           </Card>

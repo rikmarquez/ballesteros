@@ -20,6 +20,7 @@ export default function NuevoEmpleadoPage() {
     nombre: '',
     telefono: '',
     puesto: '',
+    saldo_inicial: '',
     puede_operar_caja: false,
     activo: true
   })
@@ -53,6 +54,7 @@ export default function NuevoEmpleadoPage() {
         nombre: empleadoData.nombre.trim(),
         telefono: empleadoData.telefono.trim() || null,
         puesto: empleadoData.puesto.trim() || null,
+        saldo_inicial: empleadoData.saldo_inicial ? parseFloat(empleadoData.saldo_inicial) : 0,
         puede_operar_caja: empleadoData.puede_operar_caja,
         activo: empleadoData.activo
         // No enviamos empresas - el backend automáticamente asigna a todas
@@ -138,6 +140,20 @@ export default function NuevoEmpleadoPage() {
                   onChange={(e) => handleInputChange('puesto', e.target.value)}
                   placeholder="Puesto o cargo del empleado"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="saldo_inicial">Saldo Inicial (Préstamo)</Label>
+                <Input
+                  id="saldo_inicial"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={empleadoData.saldo_inicial}
+                  onChange={(e) => handleInputChange('saldo_inicial', e.target.value)}
+                  placeholder="0.00"
+                />
+                <p className="text-sm text-gray-600 mt-1">Cantidad que el empleado debe al momento de registrarlo</p>
               </div>
             </CardContent>
           </Card>

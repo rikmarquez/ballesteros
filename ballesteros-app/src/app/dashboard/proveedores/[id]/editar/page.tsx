@@ -25,6 +25,12 @@ interface ProveedorData {
     empresa_nombre: string
     tipo_relacion: string
   }[]
+  saldos_por_empresa?: {
+    empresa_id: number
+    empresa_nombre: string
+    tipo_saldo: string
+    saldo_actual: number
+  }[]
   contadores?: {
     movimientos_como_proveedor: number
   }
@@ -43,7 +49,8 @@ export default function EditarProveedorPage() {
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
-    activo: true
+    activo: true,
+    saldo_inicial: ''
   })
 
   const cargarProveedor = async () => {
@@ -61,7 +68,8 @@ export default function EditarProveedorPage() {
       setFormData({
         nombre: data.proveedor.nombre,
         telefono: data.proveedor.telefono || '',
-        activo: data.proveedor.activo
+        activo: data.proveedor.activo,
+        saldo_inicial: ''
       })
 
     } catch (error) {
@@ -97,7 +105,8 @@ export default function EditarProveedorPage() {
       const dataToSend = {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim() || null,
-        activo: formData.activo
+        activo: formData.activo,
+        saldo_inicial: formData.saldo_inicial ? parseFloat(formData.saldo_inicial) : 0
       }
 
       const response = await fetch(`/api/proveedores/${proveedorId}`, {
@@ -181,6 +190,45 @@ export default function EditarProveedorPage() {
         </CardContent>
       </Card>
 
+      {/* Saldos por empresa */}
+      {proveedorData.saldos_por_empresa && proveedorData.saldos_por_empresa.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-orange-600" />
+              Saldos por Empresa
+            </CardTitle>
+            <CardDescription>
+              Cuentas por pagar actuales con este proveedor
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3">
+              {proveedorData.saldos_por_empresa.map(saldo => (
+                <div key={`${saldo.empresa_id}-${saldo.tipo_saldo}`} className="flex justify-between items-center p-3 bg-red-50 rounded-lg border border-red-200">
+                  <div>
+                    <div className="font-medium text-gray-900">{saldo.empresa_nombre}</div>
+                    <div className="text-sm text-gray-600">Cuenta por pagar</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-red-600">
+                      ${saldo.saldo_actual.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-500">Saldo actual</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">
+                <strong>Nota:</strong> Para ajustar estos saldos, crea un movimiento de "Pago a Proveedor"
+                desde el módulo de movimientos.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <form onSubmit={onSubmit}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -210,6 +258,22 @@ export default function EditarProveedorPage() {
                   onChange={(e) => handleInputChange('telefono', e.target.value)}
                   placeholder="Número de teléfono"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="saldo_inicial">Ajustar Saldo Inicial (Deuda Nuestra)</Label>
+                <Input
+                  id="saldo_inicial"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.saldo_inicial}
+                  onChange={(e) => handleInputChange('saldo_inicial', e.target.value)}
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-gray-600 mt-1">
+                  Solo completar si se requiere ajustar el saldo inicial de la cuenta por pagar
+                </p>
               </div>
 
             </CardContent>

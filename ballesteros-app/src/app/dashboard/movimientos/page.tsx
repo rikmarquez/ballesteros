@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Plus, Search, Edit, TrendingUp, TrendingDown, DollarSign, Calendar, Filter } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Edit, Trash2, TrendingUp, TrendingDown, DollarSign, Calendar, Filter, ChevronDown, ArrowRight } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -14,6 +15,7 @@ interface MovimientoData {
   id: number
   tipo_movimiento: string
   es_ingreso: boolean
+  es_traspaso?: boolean
   monto: number
   fecha: string
   referencia?: string
@@ -84,7 +86,10 @@ const tipoMovimientoLabels: Record<string, string> = {
   cortesia: 'Cortesía',
   otros_retiros: 'Otros Retiros',
   pago_proveedor: 'Pago Proveedor',
-  comision_plataforma: 'Comisión Plataforma'
+  comision_plataforma: 'Comisión Plataforma',
+
+  // Traspasos
+  traspaso: 'Traspaso'
 }
 
 const tipoMovimientoColors: Record<string, string> = {
@@ -105,13 +110,17 @@ const tipoMovimientoColors: Record<string, string> = {
   cortesia: 'bg-pink-100 text-pink-800',
   otros_retiros: 'bg-gray-100 text-gray-800',
   pago_proveedor: 'bg-red-100 text-red-800',
-  comision_plataforma: 'bg-orange-100 text-orange-800'
+  comision_plataforma: 'bg-orange-100 text-orange-800',
+
+  // Traspasos - Azul
+  traspaso: 'bg-blue-100 text-blue-800'
 }
 
 export default function MovimientosPage() {
   const [movimientos, setMovimientos] = useState<MovimientoData[]>([])
   const [empresas, setEmpresa] = useState<EmpresaData[]>([])
   const [loading, setLoading] = useState(true)
+  const [eliminandoId, setEliminandoId] = useState<number | null>(null)
   const [search, setSearch] = useState('')
   const [filtroTipo, setFiltroTipo] = useState<string>('all')
   const [filtroIngreso, setFiltroIngreso] = useState<string>('all')
@@ -150,6 +159,36 @@ export default function MovimientosPage() {
     }
   }
 
+  const eliminarMovimiento = async (id: number) => {
+    // Confirmación antes de eliminar
+    if (!confirm('¿Estás seguro que deseas eliminar este movimiento? Esta acción no se puede deshacer y revertirá todos los cambios en saldos.')) {
+      return
+    }
+
+    setEliminandoId(id)
+
+    try {
+      const response = await fetch(`/api/movimientos/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al eliminar movimiento')
+      }
+
+      toast.success('Movimiento eliminado exitosamente')
+
+      // Recargar la lista para mostrar cambios
+      await cargarMovimientos()
+    } catch (error) {
+      console.error('Error al eliminar movimiento:', error)
+      toast.error(error instanceof Error ? error.message : 'Error al eliminar movimiento')
+    } finally {
+      setEliminandoId(null)
+    }
+  }
+
   useEffect(() => {
     cargarEmpresas()
   }, [])
@@ -174,11 +213,11 @@ export default function MovimientosPage() {
 
   const calcularTotales = () => {
     const ingresos = movimientosFiltrados
-      .filter(m => m.es_ingreso)
+      .filter(m => m.es_ingreso && !m.es_traspaso)
       .reduce((sum, m) => sum + Number(m.monto), 0)
 
     const egresos = movimientosFiltrados
-      .filter(m => !m.es_ingreso)
+      .filter(m => !m.es_ingreso && !m.es_traspaso)
       .reduce((sum, m) => sum + Number(m.monto), 0)
 
     return { ingresos, egresos, neto: ingresos - egresos }
@@ -237,16 +276,42 @@ export default function MovimientosPage() {
         </div>
 
         <div className="flex gap-3">
-          <Link href="/dashboard/movimientos/ingreso">
-            <Button className="bg-green-600 hover:bg-green-700 text-white">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              INGRESO
-            </Button>
-          </Link>
+          {/* Dropdown para tipos de INGRESO */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="bg-green-600 hover:bg-green-700 text-white">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                INGRESO
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/movimientos/ingreso" className="w-full">
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Venta en Efectivo
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/movimientos/cobranza" className="w-full">
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Cobranza
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Link href="/dashboard/movimientos/egreso">
             <Button className="bg-red-600 hover:bg-red-700 text-white">
               <TrendingDown className="h-4 w-4 mr-2" />
               EGRESO
+            </Button>
+          </Link>
+
+          <Link href="/dashboard/movimientos/traspaso">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <ArrowLeft className="h-4 w-4 mr-2 rotate-180" />
+              TRASPASO
             </Button>
           </Link>
         </div>
@@ -390,7 +455,9 @@ export default function MovimientosPage() {
                         <Badge className={tipoMovimientoColors[movimiento.tipo_movimiento]}>
                           {tipoMovimientoLabels[movimiento.tipo_movimiento]}
                         </Badge>
-                        {movimiento.es_ingreso ? (
+                        {movimiento.es_traspaso ? (
+                          <ArrowRight className="h-4 w-4 text-blue-600" />
+                        ) : movimiento.es_ingreso ? (
                           <TrendingUp className="h-4 w-4 text-green-600" />
                         ) : (
                           <TrendingDown className="h-4 w-4 text-red-600" />
@@ -398,15 +465,30 @@ export default function MovimientosPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`text-xl font-bold ${
-                          movimiento.es_ingreso ? 'text-green-600' : 'text-red-600'
+                          movimiento.es_traspaso ? 'text-blue-600' : movimiento.es_ingreso ? 'text-green-600' : 'text-red-600'
                         }`}>
-                          {movimiento.es_ingreso ? '+' : '-'}{formatearMonto(Number(movimiento.monto))}
+                          {movimiento.es_traspaso ? '' : movimiento.es_ingreso ? '+' : '-'}{formatearMonto(Number(movimiento.monto))}
                         </span>
-                        <Link href={`/dashboard/movimientos/${movimiento.id}/editar`}>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
+                        <div className="flex items-center gap-1">
+                          <Link href={`/dashboard/movimientos/${movimiento.id}/editar`}>
+                            <Button variant="ghost" size="sm">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => eliminarMovimiento(movimiento.id)}
+                            disabled={eliminandoId === movimiento.id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {eliminandoId === movimiento.id ? (
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
                           </Button>
-                        </Link>
+                        </div>
                       </div>
                     </div>
 
@@ -421,6 +503,37 @@ export default function MovimientosPage() {
                         <div>
                           <span className="font-medium">Empresa:</span> {movimiento.empresa.nombre}
                         </div>
+                      )}
+
+                      {/* Mostrar cuentas según el tipo de movimiento */}
+                      {movimiento.es_traspaso ? (
+                        // Para TRASPASOS: mostrar origen → destino
+                        <div>
+                          <span className="font-medium">Traspaso:</span>
+                          {movimiento.cuenta_origen && (
+                            <span className="text-blue-600"> {movimiento.cuenta_origen.nombre}</span>
+                          )}
+                          <span className="mx-1">→</span>
+                          {movimiento.cuenta_destino && (
+                            <span className="text-green-600">{movimiento.cuenta_destino.nombre}</span>
+                          )}
+                        </div>
+                      ) : movimiento.es_ingreso ? (
+                        // Para INGRESOS: mostrar cuenta destino
+                        movimiento.cuenta_destino && (
+                          <div>
+                            <span className="font-medium">Destino:</span>
+                            <span className="text-green-600"> {movimiento.cuenta_destino.nombre}</span>
+                          </div>
+                        )
+                      ) : (
+                        // Para EGRESOS: mostrar cuenta origen
+                        movimiento.cuenta_origen && (
+                          <div>
+                            <span className="font-medium">Origen:</span>
+                            <span className="text-blue-600"> {movimiento.cuenta_origen.nombre}</span>
+                          </div>
+                        )
                       )}
 
                       {movimiento.entidad_relacionada && (

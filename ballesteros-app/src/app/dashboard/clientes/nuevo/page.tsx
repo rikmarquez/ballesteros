@@ -19,6 +19,7 @@ export default function NuevoClientePage() {
   const [clienteData, setClienteData] = useState({
     nombre: '',
     telefono: '',
+    saldo_inicial: '',
     activo: true
   })
 
@@ -42,6 +43,7 @@ export default function NuevoClientePage() {
       const dataToSend = {
         nombre: clienteData.nombre.trim(),
         telefono: clienteData.telefono.trim() || null,
+        saldo_inicial: clienteData.saldo_inicial ? parseFloat(clienteData.saldo_inicial) : 0,
         activo: clienteData.activo
       }
 
@@ -115,6 +117,20 @@ export default function NuevoClientePage() {
                   onChange={(e) => handleInputChange('telefono', e.target.value)}
                   placeholder="Número de teléfono"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="saldo_inicial">Saldo Inicial (Deuda)</Label>
+                <Input
+                  id="saldo_inicial"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={clienteData.saldo_inicial}
+                  onChange={(e) => handleInputChange('saldo_inicial', e.target.value)}
+                  placeholder="0.00"
+                />
+                <p className="text-sm text-gray-600 mt-1">Cantidad que el cliente debe al momento de registrarlo</p>
               </div>
 
             </CardContent>

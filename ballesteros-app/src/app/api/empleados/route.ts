@@ -8,6 +8,7 @@ const createEmpleadoSchema = z.object({
   nombre: z.string().min(1).max(255),
   telefono: z.string().max(20).optional().nullable(),
   puesto: z.string().max(100).optional().nullable(),
+  saldo_inicial: z.number().min(0).optional().default(0),
   puede_operar_caja: z.boolean().optional().default(false),
   activo: z.boolean().optional().default(true)
 })
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Usar transacción para crear empleado y asignarlo a todas las empresas activas
+    // Usar transacción para crear empleado, asignarlo a empresas y crear saldo inicial
     const resultado = await prisma.$transaction(async (tx) => {
       // Crear empleado como entidad
       const empleado = await tx.entidad.create({
@@ -149,6 +150,22 @@ export async function POST(request: NextRequest) {
             activo: true
           }))
         })
+
+        // Si hay saldo inicial, crear saldos para todas las empresas (préstamo)
+        if (validatedData.saldo_inicial > 0) {
+          await tx.saldo.createMany({
+            data: empresasActivas.map(empresa => ({
+              entidad_id: empleado.id,
+              empresa_id: empresa.id,
+              tipo_saldo: 'prestamo',
+              saldo_inicial: validatedData.saldo_inicial,
+              total_cargos: validatedData.saldo_inicial,
+              total_abonos: 0,
+              saldo_actual: validatedData.saldo_inicial,
+              fecha_corte: new Date()
+            }))
+          })
+        }
       }
 
       return empleado

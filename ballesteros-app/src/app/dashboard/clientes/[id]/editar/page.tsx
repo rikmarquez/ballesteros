@@ -43,7 +43,8 @@ export default function EditarClientePage() {
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
-    activo: true
+    activo: true,
+    saldo_inicial: ''
   })
 
   const cargarCliente = async () => {
@@ -61,7 +62,8 @@ export default function EditarClientePage() {
       setFormData({
         nombre: data.cliente.nombre,
         telefono: data.cliente.telefono || '',
-        activo: data.cliente.activo
+        activo: data.cliente.activo,
+        saldo_inicial: ''
       })
 
     } catch (error) {
@@ -97,7 +99,8 @@ export default function EditarClientePage() {
       const dataToSend = {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim() || null,
-        activo: formData.activo
+        activo: formData.activo,
+        saldo_inicial: formData.saldo_inicial ? parseFloat(formData.saldo_inicial) : 0
       }
 
       const response = await fetch(`/api/clientes/${clienteId}`, {
@@ -210,6 +213,22 @@ export default function EditarClientePage() {
                   onChange={(e) => handleInputChange('telefono', e.target.value)}
                   placeholder="Número de teléfono"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="saldo_inicial">Ajustar Saldo Inicial (Cuenta por Cobrar)</Label>
+                <Input
+                  id="saldo_inicial"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.saldo_inicial}
+                  onChange={(e) => handleInputChange('saldo_inicial', e.target.value)}
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-gray-600 mt-1">
+                  Solo completar si se requiere ajustar el saldo inicial de la cuenta por cobrar
+                </p>
               </div>
 
             </CardContent>

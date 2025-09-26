@@ -69,7 +69,22 @@
       "Bash(start http://localhost:3000/dashboard/empresas)",
       "Bash(start http://localhost:3005/dashboard/empresas)",
       "Bash(npm cache clean:*)",
-      "Bash(start http://localhost:3006/login)"
+      "Bash(start http://localhost:3006/login)",
+      "Bash(psql:*)",
+      "Bash(start http://localhost:3000/dashboard/movimientos/ingreso)",
+      "Bash(start http://localhost:3000/dashboard/movimientos)",
+      "Bash(start http://localhost:3000/dashboard/movimientos/cobranza)",
+      "Bash(start http://localhost:3000/dashboard/clientes/nuevo)",
+      "Bash(start http://localhost:3000/dashboard/proveedores/nuevo)",
+      "Bash(start http://localhost:3000/dashboard/empleados/nuevo)",
+      "Bash(start http://localhost:3000/dashboard/proveedores/10/editar)",
+      "Bash(start http://localhost:3000/dashboard/empleados/2/editar)",
+      "Bash(start http://localhost:3001/dashboard/empleados/2/editar)",
+      "Bash(start http://localhost:3001/dashboard/proveedores/10/editar)",
+      "Bash(start http://localhost:3001/dashboard/clientes/nuevo)",
+      "Bash(start http://localhost:3001/dashboard/empleados/nuevo)",
+      "Bash(start http://localhost:3001/dashboard/proveedores/nuevo)",
+      "Bash(start http://localhost:3001/dashboard/empleados/nuevo?v=2)"
     ],
     "deny": [],
     "ask": []

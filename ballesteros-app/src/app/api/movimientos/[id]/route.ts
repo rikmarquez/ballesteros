@@ -264,39 +264,63 @@ export async function DELETE(
 
     // Eliminar movimiento con transacción (revertir cambios en cuentas)
     await prisma.$transaction(async (tx) => {
-      // Revertir cambios en saldo de cuenta origen si aplica
-      if (movimiento.cuenta_origen_id) {
-        await tx.cuenta.update({
-          where: { id: movimiento.cuenta_origen_id },
-          data: {
-            saldo_actual: {
-              increment: Number(movimiento.monto) // Revertir el decremento
+      // Lógica de reversión según el tipo de movimiento
+      if (movimiento.es_traspaso) {
+        // Para TRASPASOS: revertir ambas cuentas
+        if (movimiento.cuenta_origen_id) {
+          await tx.cuenta.update({
+            where: { id: movimiento.cuenta_origen_id },
+            data: {
+              saldo_actual: {
+                increment: Number(movimiento.monto) // Devolver dinero a cuenta origen
+              }
             }
-          }
-        })
+          })
+        }
+        if (movimiento.cuenta_destino_id) {
+          await tx.cuenta.update({
+            where: { id: movimiento.cuenta_destino_id },
+            data: {
+              saldo_actual: {
+                decrement: Number(movimiento.monto) // Quitar dinero de cuenta destino
+              }
+            }
+          })
+        }
+      } else {
+        // Para INGRESOS/EGRESOS: revertir la cuenta afectada
+        if (movimiento.es_ingreso && movimiento.cuenta_destino_id) {
+          // Revertir ingreso: quitar dinero de cuenta destino
+          await tx.cuenta.update({
+            where: { id: movimiento.cuenta_destino_id },
+            data: {
+              saldo_actual: {
+                decrement: Number(movimiento.monto)
+              }
+            }
+          })
+        } else if (!movimiento.es_ingreso && movimiento.cuenta_origen_id) {
+          // Revertir egreso: devolver dinero a cuenta origen
+          await tx.cuenta.update({
+            where: { id: movimiento.cuenta_origen_id },
+            data: {
+              saldo_actual: {
+                increment: Number(movimiento.monto)
+              }
+            }
+          })
+        }
       }
 
-      // Revertir cambios en saldo de cuenta destino si aplica
-      if (movimiento.cuenta_destino_id) {
-        await tx.cuenta.update({
-          where: { id: movimiento.cuenta_destino_id },
-          data: {
-            saldo_actual: {
-              decrement: Number(movimiento.monto) // Revertir el incremento
-            }
-          }
-        })
-      }
-
-      // Revertir cambios en corte si aplica
-      if (movimiento.corte_id) {
+      // Revertir cambios en corte si aplica (solo para ingresos/egresos, no traspasos)
+      if (movimiento.corte_id && !movimiento.es_traspaso) {
         const campoCorte = getCampoCorte(movimiento.tipo_movimiento)
         if (campoCorte) {
           await tx.corte.update({
             where: { id: movimiento.corte_id },
             data: {
               [campoCorte]: {
-                decrement: Number(movimiento.monto) // Revertir el incremento
+                decrement: Number(movimiento.monto)
               }
             }
           })
