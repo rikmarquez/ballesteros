@@ -156,6 +156,7 @@ export async function POST(request: NextRequest) {
 
         // Si hay saldo inicial, crear saldo en empresa activa (o primera empresa si no se especifica)
         if (validatedData.saldo_inicial > 0) {
+          console.log(`💰 Procesando saldo inicial: ${validatedData.saldo_inicial}`) // TEMP DEBUG
           let empresaParaSaldo = validatedData.empresa_activa_id
 
           // Si no se especifica empresa activa, usar la primera empresa activa como fallback
@@ -165,6 +166,7 @@ export async function POST(request: NextRequest) {
           }
 
           if (empresaParaSaldo) {
+            console.log(`🏢 Creando saldo en empresa: ${empresaParaSaldo}`) // TEMP DEBUG
             await tx.saldo.create({
               data: {
                 entidad_id: empleado.id,
@@ -177,6 +179,9 @@ export async function POST(request: NextRequest) {
                 fecha_corte: new Date()
               }
             })
+            console.log(`✅ Saldo creado exitosamente`) // TEMP DEBUG
+          } else {
+            console.log(`❌ No se pudo determinar empresa para saldo`) // TEMP DEBUG
           }
         }
       }
