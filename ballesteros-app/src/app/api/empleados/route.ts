@@ -161,35 +161,23 @@ export async function POST(request: NextRequest) {
           }))
         })
 
-        // Si hay saldo inicial, crear saldo en empresa activa (o primera empresa si no se especifica)
+        // Si hay saldo inicial, crear saldo GLOBAL para empleado (sin empresa específica)
         if (validatedData.saldo_inicial > 0) {
-          console.log(`💰 Procesando saldo inicial: ${validatedData.saldo_inicial}`) // TEMP DEBUG
-          let empresaParaSaldo = validatedData.empresa_activa_id
+          console.log(`💰 Procesando saldo inicial GLOBAL: ${validatedData.saldo_inicial}`) // TEMP DEBUG
 
-          // Si no se especifica empresa activa, usar la primera empresa activa como fallback
-          if (!empresaParaSaldo && empresasActivas.length > 0) {
-            empresaParaSaldo = empresasActivas[0].id
-            console.log(`⚠️  No empresa activa especificada, usando fallback: ${empresasActivas[0].id}`) // TEMP DEBUG
-          }
-
-          if (empresaParaSaldo) {
-            console.log(`🏢 Creando saldo en empresa: ${empresaParaSaldo}`) // TEMP DEBUG
-            await tx.saldo.create({
-              data: {
-                entidad_id: empleado.id,
-                empresa_id: empresaParaSaldo,
-                tipo_saldo: 'prestamo',
-                saldo_inicial: validatedData.saldo_inicial,
-                total_cargos: validatedData.saldo_inicial,
-                total_abonos: 0,
-                saldo_actual: validatedData.saldo_inicial,
-                fecha_corte: new Date()
-              }
-            })
-            console.log(`✅ Saldo creado exitosamente`) // TEMP DEBUG
-          } else {
-            console.log(`❌ No se pudo determinar empresa para saldo`) // TEMP DEBUG
-          }
+          await tx.saldo.create({
+            data: {
+              entidad_id: empleado.id,
+              empresa_id: null, // Saldo GLOBAL - no específico de empresa
+              tipo_saldo: 'prestamo',
+              saldo_inicial: validatedData.saldo_inicial,
+              total_cargos: validatedData.saldo_inicial,
+              total_abonos: 0,
+              saldo_actual: validatedData.saldo_inicial,
+              fecha_corte: new Date()
+            }
+          })
+          console.log(`✅ Saldo GLOBAL creado exitosamente`) // TEMP DEBUG
         }
       }
 
