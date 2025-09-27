@@ -25,6 +25,12 @@ interface ClienteData {
     empresa_nombre: string
     tipo_relacion: string
   }[]
+  saldos_por_empresa?: {
+    empresa_id: number
+    empresa_nombre: string
+    tipo_saldo: string
+    saldo_actual: number
+  }[]
   contadores?: {
     movimientos_como_cliente: number
   }
@@ -37,6 +43,7 @@ export default function EditarClientePage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
+  const [empresaActiva, setEmpresaActiva] = useState<number | null>(null)
 
   const [clienteData, setClienteData] = useState<ClienteData | null>(null)
 
@@ -75,6 +82,21 @@ export default function EditarClientePage() {
     }
   }
 
+  // Obtener empresa activa del localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const empresaActivaLocal = localStorage.getItem('empresaActiva')
+      if (empresaActivaLocal) {
+        try {
+          const empresa = JSON.parse(empresaActivaLocal)
+          setEmpresaActiva(empresa.id)
+        } catch (error) {
+          console.error('Error parsing empresa activa:', error)
+        }
+      }
+    }
+  }, [])
+
   useEffect(() => {
     cargarCliente()
   }, [clienteId])
@@ -100,7 +122,8 @@ export default function EditarClientePage() {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim() || null,
         activo: formData.activo,
-        saldo_inicial: formData.saldo_inicial ? parseFloat(formData.saldo_inicial) : 0
+        saldo_inicial: formData.saldo_inicial ? parseFloat(formData.saldo_inicial) : 0,
+        empresa_activa_id: empresaActiva // Para saldo inicial específico
       }
 
       const response = await fetch(`/api/clientes/${clienteId}`, {
@@ -184,6 +207,45 @@ export default function EditarClientePage() {
         </CardContent>
       </Card>
 
+      {/* Saldos por empresa */}
+      {clienteData.saldos_por_empresa && clienteData.saldos_por_empresa.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-green-600" />
+              Saldos por Empresa
+            </CardTitle>
+            <CardDescription>
+              Cuentas por cobrar actuales con este cliente
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3">
+              {clienteData.saldos_por_empresa.map(saldo => (
+                <div key={`${saldo.empresa_id}-${saldo.tipo_saldo}`} className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div>
+                    <div className="font-medium text-gray-900">{saldo.empresa_nombre}</div>
+                    <div className="text-sm text-gray-600">Cuenta por cobrar</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-green-600">
+                      ${saldo.saldo_actual.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-500">Saldo actual</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">
+                <strong>Nota:</strong> Para ajustar estos saldos, crea un movimiento de "Cobro a Cliente"
+                desde el módulo de movimientos.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <form onSubmit={onSubmit}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -215,8 +277,26 @@ export default function EditarClientePage() {
                 />
               </div>
 
+              {/* Mostrar saldo actual si existe */}
+              {clienteData && clienteData.saldos_por_empresa && clienteData.saldos_por_empresa.length > 0 && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <Label className="text-sm font-medium text-blue-900">Saldo Actual por Empresa</Label>
+                  <div className="mt-2 space-y-2">
+                    {clienteData.saldos_por_empresa.map(saldo => (
+                      <div key={`${saldo.empresa_id}`} className="flex justify-between items-center">
+                        <span className="text-sm text-blue-800">{saldo.empresa_nombre}</span>
+                        <span className="font-medium text-blue-900">${saldo.saldo_actual.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    Para ajustar estos saldos, use el campo siguiente o cree un movimiento "Cobro a Cliente"
+                  </p>
+                </div>
+              )}
+
               <div>
-                <Label htmlFor="saldo_inicial">Ajustar Saldo Inicial (Cuenta por Cobrar)</Label>
+                <Label htmlFor="saldo_inicial">Agregar Deuda Adicional</Label>
                 <Input
                   id="saldo_inicial"
                   type="number"
@@ -227,7 +307,7 @@ export default function EditarClientePage() {
                   placeholder="0.00"
                 />
                 <p className="text-xs text-gray-600 mt-1">
-                  Solo completar si se requiere ajustar el saldo inicial de la cuenta por cobrar
+                  Monto a AGREGAR al saldo actual (se sumará a la cuenta por cobrar existente)
                 </p>
               </div>
 

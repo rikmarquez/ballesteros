@@ -101,7 +101,7 @@ export async function GET(
       })),
       saldos_por_empresa: empleado.saldos.map(saldo => ({
         empresa_id: saldo.empresa_id,
-        empresa_nombre: saldo.empresas?.nombre || 'Sin empresa',
+        empresa_nombre: saldo.empresa_id ? (saldo.empresas?.nombre || 'Sin empresa') : 'Global',
         tipo_saldo: saldo.tipo_saldo,
         saldo_actual: Number(saldo.saldo_actual)
       })),
@@ -191,46 +191,40 @@ export async function PUT(
         data: empleadoData
       })
 
-      // Si se especifica saldo inicial, crear/ajustar saldos
+      // Si se especifica saldo inicial, crear/ajustar saldo GLOBAL del empleado
       if (saldo_inicial && saldo_inicial > 0) {
-        // Obtener todas las empresas activas
-        const empresasActivas = await tx.empresa.findMany({
-          where: { activa: true }
+        // Los empleados tienen saldo GLOBAL (no específico por empresa)
+        const saldoExistente = await tx.saldo.findFirst({
+          where: {
+            entidad_id: empleadoId,
+            empresa_id: null, // Saldo GLOBAL
+            tipo_saldo: 'prestamo'
+          }
         })
 
-        // Crear saldos para cada empresa activa si no existen
-        for (const empresa of empresasActivas) {
-          const saldoExistente = await tx.saldo.findFirst({
-            where: {
+        if (!saldoExistente) {
+          await tx.saldo.create({
+            data: {
               entidad_id: empleadoId,
-              empresa_id: empresa.id,
-              tipo_saldo: 'prestamo'
+              empresa_id: null, // Saldo GLOBAL
+              tipo_saldo: 'prestamo',
+              saldo_inicial: saldo_inicial,
+              saldo_actual: saldo_inicial,
+              total_cargos: saldo_inicial,
+              total_abonos: 0,
+              fecha_corte: new Date()
             }
           })
-
-          if (!saldoExistente) {
-            await tx.saldo.create({
-              data: {
-                entidad_id: empleadoId,
-                empresa_id: empresa.id,
-                tipo_saldo: 'prestamo',
-                saldo_inicial: saldo_inicial,
-                saldo_actual: saldo_inicial,
-                total_cargos: saldo_inicial,
-                total_abonos: 0
-              }
-            })
-          } else {
-            // Ajustar saldo existente
-            const nuevoCargo = saldo_inicial
-            await tx.saldo.update({
-              where: { id: saldoExistente.id },
-              data: {
-                total_cargos: saldoExistente.total_cargos + nuevoCargo,
-                saldo_actual: saldoExistente.saldo_actual + nuevoCargo
-              }
-            })
-          }
+        } else {
+          // Ajustar saldo existente
+          const nuevoCargo = saldo_inicial
+          await tx.saldo.update({
+            where: { id: saldoExistente.id },
+            data: {
+              total_cargos: saldoExistente.total_cargos + nuevoCargo,
+              saldo_actual: saldoExistente.saldo_actual + nuevoCargo
+            }
+          })
         }
       }
 

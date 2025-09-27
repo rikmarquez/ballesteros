@@ -8,7 +8,8 @@ const updateClienteSchema = z.object({
   nombre: z.string().min(1).max(255).optional(),
   telefono: z.string().max(20).optional().nullable(),
   activo: z.boolean().optional(),
-  saldo_inicial: z.number().min(0).optional().default(0)
+  saldo_inicial: z.number().min(0).optional().default(0),
+  empresa_activa_id: z.number().optional().nullable() // Para saldo inicial específico - permite null
 })
 
 // GET /api/clientes/[id] - Obtener cliente por ID
@@ -40,6 +41,13 @@ export async function GET(
         entidades_empresas: {
           include: {
             empresa: {
+              select: { id: true, nombre: true }
+            }
+          }
+        },
+        saldos: {
+          include: {
+            empresas: {
               select: { id: true, nombre: true }
             }
           }
@@ -78,6 +86,12 @@ export async function GET(
         empresa_nombre: rel.empresa.nombre,
         tipo_relacion: rel.tipo_relacion
       })),
+      saldos_por_empresa: cliente.saldos.map(saldo => ({
+        empresa_id: saldo.empresa_id,
+        empresa_nombre: saldo.empresas?.nombre || 'Sin empresa',
+        tipo_saldo: saldo.tipo_saldo,
+        saldo_actual: Number(saldo.saldo_actual)
+      })),
       contadores: {
         movimientos_como_cliente: cliente._count.movimientos_entidad
       }
@@ -85,6 +99,7 @@ export async function GET(
 
     // Remover campos internos
     delete (clienteFormateado as any).entidades_empresas
+    delete (clienteFormateado as any).saldos
     delete (clienteFormateado as any)._count
 
     return NextResponse.json({ cliente: clienteFormateado })
@@ -155,26 +170,33 @@ export async function PUT(
 
     // Actualizar cliente usando transacción
     const cliente = await prisma.$transaction(async (tx) => {
-      // Actualizar datos básicos del cliente
-      const { saldo_inicial, ...clienteData } = validatedData
+      // Actualizar datos básicos del cliente (excluir campos que no van en entidades)
+      const { saldo_inicial, empresa_activa_id, ...clienteData } = validatedData
       const clienteActualizado = await tx.entidad.update({
         where: { id: clienteId },
         data: clienteData
       })
 
-      // Si se especifica saldo inicial, crear/ajustar saldos
+      // Si se especifica saldo inicial, crear/ajustar saldo en empresa activa
       if (saldo_inicial && saldo_inicial > 0) {
-        // Obtener todas las empresas activas
-        const empresasActivas = await tx.empresa.findMany({
-          where: { activa: true }
-        })
+        let empresaParaSaldo = validatedData.empresa_activa_id
 
-        // Crear saldos para cada empresa activa si no existen
-        for (const empresa of empresasActivas) {
+        // Si no se especifica empresa activa, usar la primera empresa activa como fallback
+        if (!empresaParaSaldo) {
+          const empresasActivas = await tx.empresa.findMany({
+            where: { activa: true }
+          })
+          if (empresasActivas.length > 0) {
+            empresaParaSaldo = empresasActivas[0].id
+            console.log(`⚠️  Cliente: No empresa activa especificada, usando fallback: ${empresasActivas[0].id}`) // TEMP DEBUG
+          }
+        }
+
+        if (empresaParaSaldo) {
           const saldoExistente = await tx.saldo.findFirst({
             where: {
               entidad_id: clienteId,
-              empresa_id: empresa.id,
+              empresa_id: empresaParaSaldo,
               tipo_saldo: 'cuenta_cobrar'
             }
           })
@@ -183,7 +205,7 @@ export async function PUT(
             await tx.saldo.create({
               data: {
                 entidad_id: clienteId,
-                empresa_id: empresa.id,
+                empresa_id: empresaParaSaldo, // Usar la empresa correcta (activa o fallback)
                 tipo_saldo: 'cuenta_cobrar',
                 saldo_inicial: saldo_inicial,
                 saldo_actual: saldo_inicial,

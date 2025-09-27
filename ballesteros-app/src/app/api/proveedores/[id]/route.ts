@@ -177,38 +177,53 @@ export async function PUT(
         data: proveedorData
       })
 
-      // Si se especifica saldo inicial, crear/ajustar saldo solo en empresa activa
-      if (saldo_inicial && saldo_inicial > 0 && validatedData.empresa_activa_id) {
-        const saldoExistente = await tx.saldo.findFirst({
-          where: {
-            entidad_id: proveedorId,
-            empresa_id: validatedData.empresa_activa_id,
-            tipo_saldo: 'cuenta_pagar'
-          }
-        })
+      // Si se especifica saldo inicial, crear/ajustar saldo en empresa activa
+      if (saldo_inicial && saldo_inicial > 0) {
+        let empresaParaSaldo = validatedData.empresa_activa_id
 
-        if (!saldoExistente) {
-          await tx.saldo.create({
-            data: {
+        // Si no se especifica empresa activa, usar la primera empresa activa como fallback
+        if (!empresaParaSaldo) {
+          const empresasActivas = await tx.empresa.findMany({
+            where: { activa: true }
+          })
+          if (empresasActivas.length > 0) {
+            empresaParaSaldo = empresasActivas[0].id
+            console.log(`⚠️  Proveedor: No empresa activa especificada, usando fallback: ${empresasActivas[0].id}`) // TEMP DEBUG
+          }
+        }
+
+        if (empresaParaSaldo) {
+          const saldoExistente = await tx.saldo.findFirst({
+            where: {
               entidad_id: proveedorId,
-              empresa_id: validatedData.empresa_activa_id,
-              tipo_saldo: 'cuenta_pagar',
-              saldo_inicial: saldo_inicial,
-              saldo_actual: saldo_inicial,
-              total_cargos: saldo_inicial,
-              total_abonos: 0
+              empresa_id: empresaParaSaldo,
+              tipo_saldo: 'cuenta_pagar'
             }
           })
-        } else {
-          // Ajustar saldo existente
-          const nuevoCargo = saldo_inicial
-          await tx.saldo.update({
-            where: { id: saldoExistente.id },
-            data: {
-              total_cargos: saldoExistente.total_cargos + nuevoCargo,
-              saldo_actual: saldoExistente.saldo_actual + nuevoCargo
-            }
-          })
+
+          if (!saldoExistente) {
+            await tx.saldo.create({
+              data: {
+                entidad_id: proveedorId,
+                empresa_id: empresaParaSaldo, // Usar la empresa correcta (activa o fallback)
+                tipo_saldo: 'cuenta_pagar',
+                saldo_inicial: saldo_inicial,
+                saldo_actual: saldo_inicial,
+                total_cargos: saldo_inicial,
+                total_abonos: 0
+              }
+            })
+          } else {
+            // Ajustar saldo existente
+            const nuevoCargo = saldo_inicial
+            await tx.saldo.update({
+              where: { id: saldoExistente.id },
+              data: {
+                total_cargos: saldoExistente.total_cargos + nuevoCargo,
+                saldo_actual: saldoExistente.saldo_actual + nuevoCargo
+              }
+            })
+          }
         }
       }
 

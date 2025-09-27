@@ -291,8 +291,26 @@ export default function EditarEmpleadoPage() {
                 />
               </div>
 
+              {/* Mostrar saldo actual si existe */}
+              {empleadoData && empleadoData.saldos_por_empresa && empleadoData.saldos_por_empresa.length > 0 && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <Label className="text-sm font-medium text-blue-900">Saldo Actual de Préstamos</Label>
+                  <div className="mt-2 space-y-2">
+                    {empleadoData.saldos_por_empresa.map(saldo => (
+                      <div key={`${saldo.empresa_id || 'global'}`} className="flex justify-between items-center">
+                        <span className="text-sm text-blue-800">{saldo.empresa_nombre}</span>
+                        <span className="font-medium text-blue-900">${saldo.saldo_actual.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    Para ajustar estos saldos, use el campo siguiente o cree un movimiento de "Pago de Empleado"
+                  </p>
+                </div>
+              )}
+
               <div>
-                <Label htmlFor="saldo_inicial">Ajustar Saldo Inicial (Préstamo)</Label>
+                <Label htmlFor="saldo_inicial">Agregar Préstamo Adicional</Label>
                 <Input
                   id="saldo_inicial"
                   type="number"
@@ -303,7 +321,7 @@ export default function EditarEmpleadoPage() {
                   placeholder="0.00"
                 />
                 <p className="text-xs text-gray-600 mt-1">
-                  Solo completar si se requiere ajustar el saldo inicial del préstamo
+                  Monto a AGREGAR al saldo actual (se sumará al préstamo existente)
                 </p>
               </div>
             </CardContent>
