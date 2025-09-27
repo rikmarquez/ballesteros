@@ -101,7 +101,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+    console.log('📊 Datos recibidos en API empleados:', body) // TEMP DEBUG
     const validatedData = createEmpleadoSchema.parse(body)
+    console.log('✅ Datos validados:', validatedData) // TEMP DEBUG
 
     // Verificar que no exista un empleado con el mismo nombre
     const empleadoExistente = await prisma.entidad.findFirst({
