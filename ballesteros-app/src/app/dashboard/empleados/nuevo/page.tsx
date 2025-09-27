@@ -14,6 +14,7 @@ import Link from 'next/link'
 export default function NuevoEmpleadoPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [empresaActiva, setEmpresaActiva] = useState<number | null>(null)
 
   // Datos del empleado
   const [empleadoData, setEmpleadoData] = useState({
@@ -24,6 +25,21 @@ export default function NuevoEmpleadoPage() {
     puede_operar_caja: false,
     activo: true
   })
+
+  // Obtener empresa activa del localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const empresaActivaLocal = localStorage.getItem('empresaActiva')
+      if (empresaActivaLocal) {
+        try {
+          const empresa = JSON.parse(empresaActivaLocal)
+          setEmpresaActiva(empresa.id)
+        } catch (error) {
+          console.error('Error parsing empresa activa:', error)
+        }
+      }
+    }
+  }, [])
 
   // Los empleados se asignan automáticamente a todas las empresas
 
@@ -49,15 +65,16 @@ export default function NuevoEmpleadoPage() {
 
     setIsSubmitting(true)
     try {
-      // Preparar datos para enviar al API - formato transparente
+      // Preparar datos para enviar al API - incluyendo empresa activa para saldo
       const dataToSend = {
         nombre: empleadoData.nombre.trim(),
         telefono: empleadoData.telefono.trim() || null,
         puesto: empleadoData.puesto.trim() || null,
         saldo_inicial: empleadoData.saldo_inicial ? parseFloat(empleadoData.saldo_inicial) : 0,
+        empresa_activa_id: empresaActiva, // Para saldo inicial específico
         puede_operar_caja: empleadoData.puede_operar_caja,
         activo: empleadoData.activo
-        // No enviamos empresas - el backend automáticamente asigna a todas
+        // El backend asigna a todas las empresas, pero saldo solo en empresa activa
       }
 
       const response = await fetch('/api/empleados', {

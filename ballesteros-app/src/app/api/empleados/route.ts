@@ -9,6 +9,7 @@ const createEmpleadoSchema = z.object({
   telefono: z.string().max(20).optional().nullable(),
   puesto: z.string().max(100).optional().nullable(),
   saldo_inicial: z.number().min(0).optional().default(0),
+  empresa_activa_id: z.number().optional(), // Para saldo inicial específico
   puede_operar_caja: z.boolean().optional().default(false),
   activo: z.boolean().optional().default(true)
 })
@@ -151,19 +152,19 @@ export async function POST(request: NextRequest) {
           }))
         })
 
-        // Si hay saldo inicial, crear saldos para todas las empresas (préstamo)
-        if (validatedData.saldo_inicial > 0) {
-          await tx.saldo.createMany({
-            data: empresasActivas.map(empresa => ({
+        // Si hay saldo inicial, crear saldo solo para la empresa activa
+        if (validatedData.saldo_inicial > 0 && validatedData.empresa_activa_id) {
+          await tx.saldo.create({
+            data: {
               entidad_id: empleado.id,
-              empresa_id: empresa.id,
+              empresa_id: validatedData.empresa_activa_id,
               tipo_saldo: 'prestamo',
               saldo_inicial: validatedData.saldo_inicial,
               total_cargos: validatedData.saldo_inicial,
               total_abonos: 0,
               saldo_actual: validatedData.saldo_inicial,
               fecha_corte: new Date()
-            }))
+            }
           })
         }
       }
