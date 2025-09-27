@@ -88,8 +88,9 @@ export default function EditarClientePage() {
       const empresaActivaLocal = localStorage.getItem('empresaActiva')
       if (empresaActivaLocal) {
         try {
-          const empresa = JSON.parse(empresaActivaLocal)
-          setEmpresaActiva(empresa.id)
+          const empresaId = parseInt(empresaActivaLocal)
+          setEmpresaActiva(empresaId)
+          console.log('📍 Empresa activa cargada desde localStorage:', empresaId) // TEMP DEBUG
         } catch (error) {
           console.error('Error parsing empresa activa:', error)
         }
