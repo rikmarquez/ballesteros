@@ -181,14 +181,28 @@ export async function PUT(
       if (saldo_inicial && saldo_inicial > 0) {
         let empresaParaSaldo = validatedData.empresa_activa_id
 
-        // Si no se especifica empresa activa, usar la primera empresa activa como fallback
+        // Si no se especifica empresa activa, usar Carnicería Ballesteros como fallback
         if (!empresaParaSaldo) {
-          const empresasActivas = await tx.empresa.findMany({
-            where: { activa: true }
+          // Buscar Carnicería Ballesteros primero
+          const carniceriaBallesteros = await tx.empresa.findFirst({
+            where: {
+              nombre: { contains: 'Ballesteros', mode: 'insensitive' },
+              activa: true
+            }
           })
-          if (empresasActivas.length > 0) {
-            empresaParaSaldo = empresasActivas[0].id
-            console.log(`⚠️  Cliente: No empresa activa especificada, usando fallback: ${empresasActivas[0].id}`) // TEMP DEBUG
+
+          if (carniceriaBallesteros) {
+            empresaParaSaldo = carniceriaBallesteros.id
+            console.log(`⚠️  Cliente: No empresa activa especificada, usando Carnicería Ballesteros: ${carniceriaBallesteros.id}`) // TEMP DEBUG
+          } else {
+            // Si no existe Carnicería Ballesteros, usar cualquier empresa activa
+            const empresasActivas = await tx.empresa.findMany({
+              where: { activa: true }
+            })
+            if (empresasActivas.length > 0) {
+              empresaParaSaldo = empresasActivas[0].id
+              console.log(`⚠️  Cliente: Carnicería Ballesteros no encontrada, usando fallback: ${empresasActivas[0].id}`) // TEMP DEBUG
+            }
           }
         }
 
