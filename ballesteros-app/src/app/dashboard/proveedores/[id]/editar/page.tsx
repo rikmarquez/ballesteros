@@ -43,6 +43,7 @@ export default function EditarProveedorPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
+  const [empresaActiva, setEmpresaActiva] = useState<number | null>(null)
 
   const [proveedorData, setProveedorData] = useState<ProveedorData | null>(null)
 
@@ -81,6 +82,21 @@ export default function EditarProveedorPage() {
     }
   }
 
+  // Obtener empresa activa del localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const empresaActivaLocal = localStorage.getItem('empresaActiva')
+      if (empresaActivaLocal) {
+        try {
+          const empresa = JSON.parse(empresaActivaLocal)
+          setEmpresaActiva(empresa.id)
+        } catch (error) {
+          console.error('Error parsing empresa activa:', error)
+        }
+      }
+    }
+  }, [])
+
   useEffect(() => {
     cargarProveedor()
   }, [proveedorId])
@@ -106,7 +122,8 @@ export default function EditarProveedorPage() {
         nombre: formData.nombre.trim(),
         telefono: formData.telefono.trim() || null,
         activo: formData.activo,
-        saldo_inicial: formData.saldo_inicial ? parseFloat(formData.saldo_inicial) : 0
+        saldo_inicial: formData.saldo_inicial ? parseFloat(formData.saldo_inicial) : 0,
+        empresa_activa_id: empresaActiva // Para saldo inicial específico
       }
 
       const response = await fetch(`/api/proveedores/${proveedorId}`, {

@@ -8,7 +8,8 @@ const updateProveedorSchema = z.object({
   nombre: z.string().min(1).max(255).optional(),
   telefono: z.string().max(20).optional().nullable(),
   activo: z.boolean().optional(),
-  saldo_inicial: z.number().min(0).optional().default(0)
+  saldo_inicial: z.number().min(0).optional().default(0),
+  empresa_activa_id: z.number().optional() // Para saldo inicial específico
 })
 
 // GET /api/proveedores/[id] - Obtener proveedor por ID
@@ -176,46 +177,38 @@ export async function PUT(
         data: proveedorData
       })
 
-      // Si se especifica saldo inicial, crear/ajustar saldos
-      if (saldo_inicial && saldo_inicial > 0) {
-        // Obtener todas las empresas activas
-        const empresasActivas = await tx.empresa.findMany({
-          where: { activa: true }
+      // Si se especifica saldo inicial, crear/ajustar saldo solo en empresa activa
+      if (saldo_inicial && saldo_inicial > 0 && validatedData.empresa_activa_id) {
+        const saldoExistente = await tx.saldo.findFirst({
+          where: {
+            entidad_id: proveedorId,
+            empresa_id: validatedData.empresa_activa_id,
+            tipo_saldo: 'cuenta_pagar'
+          }
         })
 
-        // Crear saldos para cada empresa activa si no existen
-        for (const empresa of empresasActivas) {
-          const saldoExistente = await tx.saldo.findFirst({
-            where: {
+        if (!saldoExistente) {
+          await tx.saldo.create({
+            data: {
               entidad_id: proveedorId,
-              empresa_id: empresa.id,
-              tipo_saldo: 'cuenta_pagar'
+              empresa_id: validatedData.empresa_activa_id,
+              tipo_saldo: 'cuenta_pagar',
+              saldo_inicial: saldo_inicial,
+              saldo_actual: saldo_inicial,
+              total_cargos: saldo_inicial,
+              total_abonos: 0
             }
           })
-
-          if (!saldoExistente) {
-            await tx.saldo.create({
-              data: {
-                entidad_id: proveedorId,
-                empresa_id: empresa.id,
-                tipo_saldo: 'cuenta_pagar',
-                saldo_inicial: saldo_inicial,
-                saldo_actual: saldo_inicial,
-                total_cargos: saldo_inicial,
-                total_abonos: 0
-              }
-            })
-          } else {
-            // Ajustar saldo existente
-            const nuevoCargo = saldo_inicial
-            await tx.saldo.update({
-              where: { id: saldoExistente.id },
-              data: {
-                total_cargos: saldoExistente.total_cargos + nuevoCargo,
-                saldo_actual: saldoExistente.saldo_actual + nuevoCargo
-              }
-            })
-          }
+        } else {
+          // Ajustar saldo existente
+          const nuevoCargo = saldo_inicial
+          await tx.saldo.update({
+            where: { id: saldoExistente.id },
+            data: {
+              total_cargos: saldoExistente.total_cargos + nuevoCargo,
+              saldo_actual: saldoExistente.saldo_actual + nuevoCargo
+            }
+          })
         }
       }
 
