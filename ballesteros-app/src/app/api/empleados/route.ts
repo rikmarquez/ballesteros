@@ -94,14 +94,21 @@ export async function GET(request: NextRequest) {
 
 // POST /api/empleados - Crear nuevo empleado (usando tabla entidades)
 export async function POST(request: NextRequest) {
+  console.log('🚀 INICIO POST /api/empleados') // TEMP DEBUG
   try {
+    console.log('🔐 Verificando autenticación...') // TEMP DEBUG
     const session = await auth()
     if (!session) {
+      console.log('❌ Sin autenticación') // TEMP DEBUG
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
+    console.log('✅ Autenticado:', session.user?.name) // TEMP DEBUG
 
+    console.log('📥 Obteniendo body...') // TEMP DEBUG
     const body = await request.json()
     console.log('📊 Datos recibidos en API empleados:', body) // TEMP DEBUG
+
+    console.log('🔍 Validando con Zod...') // TEMP DEBUG
     const validatedData = createEmpleadoSchema.parse(body)
     console.log('✅ Datos validados:', validatedData) // TEMP DEBUG
 
