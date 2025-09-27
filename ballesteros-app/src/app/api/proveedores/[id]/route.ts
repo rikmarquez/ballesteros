@@ -170,8 +170,8 @@ export async function PUT(
 
     // Actualizar proveedor usando transacción
     const proveedor = await prisma.$transaction(async (tx) => {
-      // Actualizar datos básicos del proveedor
-      const { saldo_inicial, ...proveedorData } = validatedData
+      // Actualizar datos básicos del proveedor (excluir campos que no van en entidades)
+      const { saldo_inicial, empresa_activa_id, ...proveedorData } = validatedData
       const proveedorActualizado = await tx.entidad.update({
         where: { id: proveedorId },
         data: proveedorData
