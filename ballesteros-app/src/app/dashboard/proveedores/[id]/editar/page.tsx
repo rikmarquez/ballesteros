@@ -277,8 +277,26 @@ export default function EditarProveedorPage() {
                 />
               </div>
 
+              {/* Mostrar saldo actual si existe */}
+              {proveedorData && proveedorData.saldos_por_empresa && proveedorData.saldos_por_empresa.length > 0 && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <Label className="text-sm font-medium text-blue-900">Saldo Actual por Empresa</Label>
+                  <div className="mt-2 space-y-2">
+                    {proveedorData.saldos_por_empresa.map(saldo => (
+                      <div key={`${saldo.empresa_id}`} className="flex justify-between items-center">
+                        <span className="text-sm text-blue-800">{saldo.empresa_nombre}</span>
+                        <span className="font-medium text-blue-900">${saldo.saldo_actual.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    Para ajustar estos saldos, use el campo siguiente o cree un movimiento "Pago a Proveedor"
+                  </p>
+                </div>
+              )}
+
               <div>
-                <Label htmlFor="saldo_inicial">Ajustar Saldo Inicial (Deuda Nuestra)</Label>
+                <Label htmlFor="saldo_inicial">Agregar Deuda Adicional</Label>
                 <Input
                   id="saldo_inicial"
                   type="number"
@@ -289,7 +307,7 @@ export default function EditarProveedorPage() {
                   placeholder="0.00"
                 />
                 <p className="text-xs text-gray-600 mt-1">
-                  Solo completar si se requiere ajustar el saldo inicial de la cuenta por pagar
+                  Monto a AGREGAR al saldo actual (se sumará a la deuda existente)
                 </p>
               </div>
 
