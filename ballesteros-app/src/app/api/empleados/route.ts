@@ -154,20 +154,30 @@ export async function POST(request: NextRequest) {
           }))
         })
 
-        // Si hay saldo inicial, crear saldo solo para la empresa activa
-        if (validatedData.saldo_inicial > 0 && validatedData.empresa_activa_id) {
-          await tx.saldo.create({
-            data: {
-              entidad_id: empleado.id,
-              empresa_id: validatedData.empresa_activa_id,
-              tipo_saldo: 'prestamo',
-              saldo_inicial: validatedData.saldo_inicial,
-              total_cargos: validatedData.saldo_inicial,
-              total_abonos: 0,
-              saldo_actual: validatedData.saldo_inicial,
-              fecha_corte: new Date()
-            }
-          })
+        // Si hay saldo inicial, crear saldo en empresa activa (o primera empresa si no se especifica)
+        if (validatedData.saldo_inicial > 0) {
+          let empresaParaSaldo = validatedData.empresa_activa_id
+
+          // Si no se especifica empresa activa, usar la primera empresa activa como fallback
+          if (!empresaParaSaldo && empresasActivas.length > 0) {
+            empresaParaSaldo = empresasActivas[0].id
+            console.log(`⚠️  No empresa activa especificada, usando fallback: ${empresasActivas[0].id}`) // TEMP DEBUG
+          }
+
+          if (empresaParaSaldo) {
+            await tx.saldo.create({
+              data: {
+                entidad_id: empleado.id,
+                empresa_id: empresaParaSaldo,
+                tipo_saldo: 'prestamo',
+                saldo_inicial: validatedData.saldo_inicial,
+                total_cargos: validatedData.saldo_inicial,
+                total_abonos: 0,
+                saldo_actual: validatedData.saldo_inicial,
+                fecha_corte: new Date()
+              }
+            })
+          }
         }
       }
 
