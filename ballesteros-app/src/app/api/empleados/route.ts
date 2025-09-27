@@ -9,7 +9,7 @@ const createEmpleadoSchema = z.object({
   telefono: z.string().max(20).optional().nullable(),
   puesto: z.string().max(100).optional().nullable(),
   saldo_inicial: z.number().min(0).optional().default(0),
-  empresa_activa_id: z.number().optional(), // Para saldo inicial específico
+  empresa_activa_id: z.number().optional().nullable(), // Para saldo inicial específico - permite null
   puede_operar_caja: z.boolean().optional().default(false),
   activo: z.boolean().optional().default(true)
 })

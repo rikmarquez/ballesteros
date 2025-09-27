@@ -9,7 +9,7 @@ const updateProveedorSchema = z.object({
   telefono: z.string().max(20).optional().nullable(),
   activo: z.boolean().optional(),
   saldo_inicial: z.number().min(0).optional().default(0),
-  empresa_activa_id: z.number().optional() // Para saldo inicial específico
+  empresa_activa_id: z.number().optional().nullable() // Para saldo inicial específico - permite null
 })
 
 // GET /api/proveedores/[id] - Obtener proveedor por ID
